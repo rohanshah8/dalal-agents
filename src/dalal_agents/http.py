@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import threading
 import time
 from pathlib import Path
@@ -17,6 +18,8 @@ from urllib.parse import urlencode, urlparse
 import requests
 
 from .config import Settings
+
+log = logging.getLogger(__name__)
 
 
 class OfflineMiss(RuntimeError):
@@ -32,7 +35,11 @@ class HttpClient:
             "Accept-Language": "en-IN,en;q=0.9",
         })
         self.cache_dir = Path(settings.cache_dir) / "http"
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as e:  # read-only home, disk quota, ...: run uncached rather than crash
+            log.warning("cache disabled (%s); set DALAL_CACHE_DIR to a writable path", e)
+            settings.no_cache = True
         self.min_interval_s = min_interval_s
         self._last_hit: dict[str, float] = {}
         self._host_locks: dict[str, threading.Lock] = {}
@@ -56,8 +63,11 @@ class HttpClient:
         return None
 
     def _write_cache(self, path: Path, url: str, content: bytes) -> None:
-        path.write_bytes(content)
-        path.with_suffix(".json").write_text(json.dumps({"url": url, "ts": time.time()}))
+        try:
+            path.write_bytes(content)
+            path.with_suffix(".json").write_text(json.dumps({"url": url, "ts": time.time()}))
+        except OSError as e:
+            log.warning("cache write failed for %s: %s", url, e)
 
     # ------------------------------------------------------------- throttling
     def _throttle(self, host: str) -> threading.Lock:

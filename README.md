@@ -34,7 +34,7 @@ Each run has 11 agents gather the data and do the analysis that would take a hum
 | **Edge** | A percentile **scorecard** across 7 dimensions that shows where the company wins and where it lags vs peers | Computed |
 | **Writer + Verifier** | The LLM writes the narrative using *only* the cited facts. A deterministic verifier then checks every number against its source | Claude / OpenAI / Ollama |
 
-**Example reports** (real runs, 1 Oct 2026): [TCS vs Infosys, HCLTech, Wipro, Tech Mahindra](examples/TCS.md) · [HDFC Bank vs ICICI, Kotak, Axis, IDBI](examples/HDFCBANK.md)
+**Example reports** (real runs, 1 Oct 2026): [TCS vs Infosys, HCLTech, Wipro, Tech Mahindra](examples/TCS.md) · [HDFC Bank vs ICICI, Kotak, Axis, IDBI](examples/HDFCBANK.md) · [Asian Paints vs Berger, Kansai Nerolac, JSW Dulux, Indigo](examples/ASIANPAINT.md)
 
 ```
            Edge scorecard (percentile vs peers)
@@ -172,11 +172,20 @@ Dalal Agents uses free, public sources: Screener.in, Yahoo Finance, Google News 
 
 Please respect each source's terms of use. For heavy or commercial use, plug in a licensed data provider (see `providers/`).
 
+## Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `SSLError: certificate verify failed` when calling the LLM (corporate proxy or gateway) | `export REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt` (or your company's CA bundle) |
+| `cache disabled (...)` warning, or a disk quota / read-only home directory | `export DALAL_CACHE_DIR=/path/with/space` |
+| `LLM writer failed ... deterministic narrative used` | The report is still produced without the AI narrative. Check your key, model id (`--model`) and base URL |
+| A model id is rejected by your gateway | Pass one it supports, e.g. `--model claude-opus-5-5` |
+
 ## Development
 
 ```bash
 pip install -e ".[dev]"
-pytest -q            # 39 offline tests: parsers on real HTML fixtures, finance maths, verifier, end-to-end pipeline
+pytest -q            # 40 offline tests: parsers on real HTML fixtures, finance maths, verifier, end-to-end pipeline
 ```
 
 Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Good first issues: more sector playbooks (insurance, real estate), a Streamlit UI, annual-report RAG, and a quarterly "promise vs delivery" tracker for concall guidance.

@@ -98,7 +98,7 @@ _STRIP_PATTERNS = [
     r"\b\d+[ -]?(?:y|yr|m|d|q|w)\b",  # 5y, 1Y, 3m
     r"\b(?:Nifty|NIFTY|Sensex|SENSEX|BSE|NSE)\s?\d+\b",
     r"\b\d+[- ]?(?:DMA|SMA|EMA)\b|\b(?:SMA|EMA|DMA|RSI)\s?\(?\d+\)?",
-    r"\b(?:top|rank(?:ed)?|of|among|out of|against|vs\.?|versus|all|these|the)\s+\d{1,2}\b(?!\.\d|\s*%)",
+    r"\b(?:top|rank(?:ed)?|of|among|out of|against|vs\.?|versus|all|these|the)\s+\d{1,2}\b(?![.,]\d|\s*%)",
     r"\b\d{1,2}\s+(?:listed\s+)?(?:peers?|competitors?|companies|players|calls?|transcripts?|headlines?)\b",
     r"\b\d+(?:st|nd|rd|th)\b",
     r"\b\d+\s?/\s?100\b|/100\b",

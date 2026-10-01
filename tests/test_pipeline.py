@@ -59,6 +59,12 @@ def test_numbers_ignore_years_and_periods():
     assert _numbers_in("In FY2026 and FY27 the 5-year CAGR over 10y, NIFTY 50, was 12% [F1]") == [12.0]
 
 
+def test_numbers_indian_digit_grouping():
+    # lakh/crore grouping must parse as one number, even after words like "of"/"the"
+    assert _numbers_in("An inter-se transfer of 1,64,000 shares [E5].") == [164000.0]
+    assert _numbers_in("Market cap of ₹11,00,888 cr [F1]") == [1100888.0]
+
+
 def test_strict_mode_drops_bad_sentences(store):
     out, stats = verify_narrative({"a": "Good [F1]. ROCE is 59.9% [F1]. ROCE is 99% [F1]."}, store, strict=True)
     assert "99%" not in out["a"] and stats["passed"] == 2
