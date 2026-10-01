@@ -3,7 +3,7 @@
 **Open-source multi-agent equity research for Indian stocks (NSE/BSE).**
 One command gives you a research report on any listed Indian company and its closest competitors. Every number in it is cited.
 
-### 👉 [Try it in your browser](https://huggingface.co/spaces/rohanshah8/dalal-agents) — no install, no sign-up
+### 👉 [Try it in your browser](https://huggingface.co/spaces/srg6698/dalal-agents) — no install, no sign-up
 
 The web app runs without an API key: you get every number, chart and the competitor scorecard. Paste your own Anthropic or OpenAI key in the sidebar to add the AI analyst narrative. The key is used only for that run and is never stored.
 
@@ -14,7 +14,7 @@ dalal analyze 500325          # BSE code works too
 ```
 
 [![CI](https://github.com/rohanshah8/dalal-agents/actions/workflows/ci.yml/badge.svg)](https://github.com/rohanshah8/dalal-agents/actions)
-[![Open in Spaces](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Open%20app-yellow)](https://huggingface.co/spaces/rohanshah8/dalal-agents)
+[![Open in Spaces](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Open%20app-yellow)](https://huggingface.co/spaces/srg6698/dalal-agents)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue) ![License](https://img.shields.io/badge/license-MIT-green)
 
 > ⚠️ **Not investment advice.** Dalal Agents is an educational research tool. It never issues buy/sell/hold calls or target prices, and the authors are not SEBI-registered Research Analysts. See the [disclaimer](#disclaimer).
@@ -139,7 +139,7 @@ How the app works:
 ### Deploy your own Space (free)
 1. Create a Hugging Face [access token](https://huggingface.co/settings/tokens) with **write** permission.
 2. [Create a Space](https://huggingface.co/new-space): SDK **Gradio**, template **Blank**, hardware **CPU basic (free)**.
-3. In this GitHub repo, open **Settings → Secrets and variables → Actions**. Add the secret `HF_TOKEN`. If your Space isn't `rohanshah8/dalal-agents`, also add the variable `HF_SPACE=<user>/<space>`.
+3. In this GitHub repo, open **Settings → Secrets and variables → Actions**. Add the secret `HF_TOKEN`. If your Space isn't `srg6698/dalal-agents`, also add the variable `HF_SPACE=<user>/<space>`.
 4. Push to `main`, or run **Deploy to Hugging Face Space** from the Actions tab. The workflow assembles the Space with `scripts/build_space.sh`, which you can run locally to inspect exactly what gets deployed.
 
 ## Report contents
