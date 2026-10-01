@@ -69,7 +69,7 @@ The output is a Markdown, HTML and JSON report with these parts:
 - CLI (`dalal`) and Python API; offline test suite with fixtures
 
 **Roadmap**
-- v0.2: Streamlit UI (shipped: `app/`, hosted on Hugging Face Spaces), multi-quarter "promise vs. delivery" tracker for concalls, annual-report RAG with embeddings
+- v0.2: Web UI (shipped: Gradio app on a free Hugging Face Space, Streamlit for self-hosting; see `app/`), multi-quarter "promise vs. delivery" tracker for concalls, annual-report RAG with embeddings
 - v0.3: watchlists with quarterly diff alerts, sector reports, global peers (e.g. TCS vs. Accenture)
 - v0.4: eval leaderboard across LLMs, plugin data providers (paid APIs)
 

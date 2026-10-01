@@ -1,4 +1,5 @@
-# Dalal Agents web app — Hugging Face Spaces (Docker SDK) or any container host.
+# Dalal Agents Streamlit app for self-hosting (Render, Railway, Fly.io, a VPS…).
+# The public Hugging Face Space uses the Gradio app instead (see scripts/build_space.sh).
 #   docker build -t dalal-agents . && docker run -p 7860:7860 dalal-agents
 FROM python:3.11-slim
 

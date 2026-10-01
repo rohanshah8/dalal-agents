@@ -1,5 +1,5 @@
 name: Deploy to Hugging Face Space
-# Pushes the app to https://huggingface.co/spaces/<HF_SPACE> after CI passes on main.
+# Pushes the Gradio app to https://huggingface.co/spaces/<HF_SPACE> (free CPU, SDK: Gradio) after CI passes on main.
 # One-time setup: repo secret HF_TOKEN (write token); optional repo variable HF_SPACE (default below).
 on:
   workflow_run:
@@ -26,11 +26,7 @@ jobs:
           fi
       - name: Build Space tree
         if: env.HF_TOKEN != ''
-        run: |
-          mkdir -p /tmp/space
-          cp -r Dockerfile .dockerignore pyproject.toml LICENSE src app .streamlit /tmp/space/
-          # Spaces need YAML front-matter in README.md; the package build also reads README.md.
-          cp app/SPACE_README.md /tmp/space/README.md
+        run: ./scripts/build_space.sh /tmp/space
       - name: Push to Space
         if: env.HF_TOKEN != ''
         run: |

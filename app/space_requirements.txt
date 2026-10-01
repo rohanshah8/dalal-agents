@@ -1,0 +1,14 @@
+# Runtime deps for the Hugging Face Gradio Space (gradio itself is preinstalled at sdk_version).
+requests>=2.31
+beautifulsoup4>=4.12
+lxml>=4.9
+pandas>=2.0
+numpy>=1.24
+yfinance>=0.2.40
+feedparser>=6.0
+pydantic>=2.5
+typer>=0.12
+rich>=13
+pypdf>=4.0
+markdown>=3.5
+plotly>=5.20

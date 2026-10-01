@@ -120,28 +120,27 @@ open("tcs.md", "w").write(render_markdown(report))
 
 ## Web app
 
+The public app is a **Gradio** UI hosted on a free Hugging Face Space. A Streamlit UI with the same features is included for local or self-hosted use. Both share `app/core.py`, which holds the pipeline wrapper, caching and API-key policy.
+
 ```bash
 pip install -e ".[web]"
-streamlit run app/streamlit_app.py          # http://localhost:8501
-```
-
-Or with Docker (the same image that runs on Hugging Face):
-
-```bash
-docker build -t dalal-agents . && docker run -p 7860:7860 dalal-agents   # http://localhost:7860
+python app/gradio_app.py                    # Gradio UI → http://localhost:7860
+streamlit run app/streamlit_app.py          # or the Streamlit UI → http://localhost:8501
+docker build -t dalal-agents . && docker run -p 7860:7860 dalal-agents   # Streamlit in Docker
 ```
 
 How the app works:
 - **Tabs:** Summary, Competitors & edge (scorecard heatmap), Price & trend vs peers and Nifty, Financials, Ownership, Management & plans (concall guidance with quotes), News, and the full report with sources.
-- **Downloads:** Markdown, HTML and JSON.
-- **Caching:** key-free analyses are cached for 6 hours and shared by all visitors, so popular stocks load instantly. Analyses that use a visitor's API key are never cached.
-- **Load limits:** at most 2 analyses run at once per server (`DALAL_MAX_CONCURRENT`). Others wait in a queue.
+- **Downloads:** HTML, Markdown and JSON.
+- **Caching:** key-free analyses are cached for 6 hours and shared by all visitors, so popular stocks load instantly.
+- **API keys:** an analysis that uses a visitor's key runs in full with their LLM (concall reading, news themes, competitor filtering, narrative). It is never cached, and the key is never stored, logged or echoed back.
+- **Load limits:** at most 2 analyses run at once (`DALAL_MAX_CONCURRENT`). Other visitors see their place in Gradio's queue.
 
-### Deploy your own Space
+### Deploy your own Space (free)
 1. Create a Hugging Face [access token](https://huggingface.co/settings/tokens) with **write** permission.
-2. Create a new Space: SDK **Docker**, template **Blank**, hardware **CPU basic (free)**.
+2. [Create a Space](https://huggingface.co/new-space): SDK **Gradio**, template **Blank**, hardware **CPU basic (free)**.
 3. In this GitHub repo, open **Settings → Secrets and variables → Actions**. Add the secret `HF_TOKEN`. If your Space isn't `rohanshah8/dalal-agents`, also add the variable `HF_SPACE=<user>/<space>`.
-4. Push to `main`. Once CI passes, the **Deploy to Hugging Face Space** workflow publishes the app. You can also run it manually from the Actions tab.
+4. Push to `main`, or run **Deploy to Hugging Face Space** from the Actions tab. The workflow assembles the Space with `scripts/build_space.sh`, which you can run locally to inspect exactly what gets deployed.
 
 ## Report contents
 
@@ -215,14 +214,14 @@ Please respect each source's terms of use. For heavy or commercial use, plug in 
 
 ```bash
 pip install -e ".[dev,web]"
-pytest -q            # 43 offline tests: parsers on real HTML fixtures, finance maths, verifier, end-to-end pipeline
+pytest -q            # 52 offline tests: parsers on real HTML fixtures, finance maths, verifier, end-to-end pipeline
 ```
 
 Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Good first issues: more sector playbooks (insurance, real estate), annual-report RAG, and a quarterly "promise vs delivery" tracker for concall guidance.
 
 ## Roadmap
 
-- [x] Streamlit web UI, hosted on Hugging Face Spaces
+- [x] Web UI (Gradio on Hugging Face Spaces; Streamlit for self-hosting)
 - [ ] Track concall guidance against actual delivery across 8 quarters
 - [ ] Annual-report RAG (segment data, related-party transactions, contingent liabilities)
 - [ ] Global peers (e.g. TCS vs Accenture, Cognizant)
