@@ -1,0 +1,43 @@
+name: Deploy to Hugging Face Space
+# Pushes the app to https://huggingface.co/spaces/<HF_SPACE> after CI passes on main.
+# One-time setup: repo secret HF_TOKEN (write token); optional repo variable HF_SPACE (default below).
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_SPACE: ${{ vars.HF_SPACE || 'rohanshah8/dalal-agents' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Check token
+        run: |
+          if [ -z "$HF_TOKEN" ]; then
+            echo "::warning::HF_TOKEN secret not set; skipping deploy."; exit 0
+          fi
+      - name: Build Space tree
+        if: env.HF_TOKEN != ''
+        run: |
+          mkdir -p /tmp/space
+          cp -r Dockerfile .dockerignore pyproject.toml LICENSE src app .streamlit /tmp/space/
+          # Spaces need YAML front-matter in README.md; the package build also reads README.md.
+          cp app/SPACE_README.md /tmp/space/README.md
+      - name: Push to Space
+        if: env.HF_TOKEN != ''
+        run: |
+          cd /tmp/space
+          git init -q -b main
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Deploy ${GITHUB_SHA::7} from GitHub"
+          git push --force "https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}" main

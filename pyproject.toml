@@ -33,6 +33,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.5"]
+web = ["streamlit>=1.46", "plotly>=5.20"]
 
 [project.scripts]
 dalal = "dalal_agents.cli:app"

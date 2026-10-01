@@ -61,3 +61,23 @@ class Settings:
                 p = "none"
         default_models = {"anthropic": "claude-sonnet-5-5", "openai": "gpt-4.1-mini", "none": None}
         return p, self.model or default_models.get(p)
+
+
+def safe_public_url(url: str) -> str:
+    """Validate a user-supplied endpoint (hosted app): https only, never private/loopback addresses."""
+    import ipaddress
+    import socket
+    from urllib.parse import urlparse
+
+    u = urlparse(url)
+    if u.scheme != "https" or not u.hostname:
+        raise ValueError("Base URL must be an https:// URL.")
+    try:
+        addrs = {i[4][0] for i in socket.getaddrinfo(u.hostname, u.port or 443)}
+    except OSError as e:
+        raise ValueError(f"Cannot resolve {u.hostname}.") from e
+    for a in addrs:
+        ip = ipaddress.ip_address(a)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+            raise ValueError("Base URL must be a public endpoint.")
+    return url.rstrip("/")

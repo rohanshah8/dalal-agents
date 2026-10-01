@@ -14,6 +14,17 @@ class FactStore:
         self.excerpts: dict[str, Excerpt] = {}
         self._by_key: dict[str, str] = {}
 
+    @classmethod
+    def from_report(cls, report) -> FactStore:
+        """Rebuild the store (same IDs) from a serialized Report, e.g. a cached research result."""
+        store = cls()
+        for f in report.facts:
+            store.facts[f.id] = f
+            store._by_key[f.key] = f.id
+        for e in report.excerpts:
+            store.excerpts[e.id] = e
+        return store
+
     def add(
         self,
         key: str,

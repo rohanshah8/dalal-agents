@@ -138,6 +138,7 @@ class Peer(BaseModel):
 class Report(BaseModel):
     symbol: str
     name: str
+    industry: str | None = None
     generated_at: str = Field(default_factory=utcnow)
     model: str | None = None
     findings: dict[str, Finding] = Field(default_factory=dict)
@@ -149,3 +150,4 @@ class Report(BaseModel):
     facts: list[Fact] = Field(default_factory=list)
     excerpts: list[Excerpt] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    charts: dict[str, Any] = Field(default_factory=dict)  # compact series for UIs (weekly closes, …)

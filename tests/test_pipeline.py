@@ -1,5 +1,4 @@
 """Verifier, FactStore, LLM JSON parsing and the end-to-end pipeline with fakes (no network)."""
-import pandas as pd
 import pytest
 
 from dalal_agents.agents.synthesis import _numbers_in, verify_narrative, verify_text
@@ -82,74 +81,43 @@ def test_quote_grounding():
 
 
 # ---------------------------------------------------------------- end-to-end (fakes)
-def test_pipeline_end_to_end_offline(tmp_path, monkeypatch):
+def test_pipeline_end_to_end_offline(tmp_path, offline_providers):
     """Run the whole orchestrator with providers stubbed from fixtures — no network, no LLM."""
-    from pathlib import Path
-
-    import numpy as np
-
     from dalal_agents.config import Settings
     from dalal_agents.orchestrator import analyze
-    from dalal_agents.providers import news as news_mod
-    from dalal_agents.providers import screener as scr
-    from dalal_agents.providers.yahoo import YahooProvider
     from dalal_agents.report import render_markdown, save_report
-
-    fx = Path(__file__).parent / "fixtures"
-    tcs_html = (fx / "screener_TCS.html").read_text()
-
-    def company(self, symbol, consolidated=True):
-        html = tcs_html.replace("Tata Consultancy Services Ltd", f"{symbol} Ltd") if symbol != "TCS" else tcs_html
-        return scr.parse_company_page(html, symbol, f"https://www.screener.in/company/{symbol}/", True)
-
-    monkeypatch.setattr(scr.ScreenerProvider, "company", company)
-    monkeypatch.setattr(scr.ScreenerProvider, "peers",
-                        lambda self, d: scr.parse_peers((fx / "screener_peers_TCS.html").read_text()))
-    monkeypatch.setattr(scr.ScreenerProvider, "announcements",
-                        lambda self, d: scr.parse_announcements((fx / "screener_ann_TCS.html").read_text()))
-    monkeypatch.setattr(news_mod.NewsProvider, "search",
-                        lambda self, q, days=60, limit=40: news_mod.parse_news((fx / "gnews_TCS.xml").read_bytes(),
-                                                                               days=100000, limit=limit))
-    monkeypatch.setattr(news_mod.WebSearchProvider, "search",
-                        lambda self, q, limit=8: news_mod.parse_bing((fx / "bing.xml").read_bytes(), limit))
-
-    def history(self, sym, period="5y"):
-        rng = np.random.default_rng(abs(hash(sym)) % 1000)
-        close = 100 * np.exp(np.cumsum(rng.normal(0.0003, 0.012, 1250)))
-        idx = pd.bdate_range("2021-10-01", periods=1250)
-        return pd.DataFrame({"Open": close, "High": close, "Low": close, "Close": close, "Volume": 1e6}, index=idx)
-
-    monkeypatch.setattr(YahooProvider, "history", history)
-    monkeypatch.setattr(YahooProvider, "resolve", lambda self, s: f"{s}.NS")
-    from dalal_agents.providers.documents import DocumentProvider
-
-    def pdf_text(self, url, max_pages=60):
-        raise RuntimeError("no network in tests")
-
-    monkeypatch.setattr(DocumentProvider, "pdf_text", pdf_text)
 
     s = Settings(llm_provider="none", cache_dir=tmp_path, n_peers=3)
     r = analyze("TCS", s)
     assert r.symbol == "TCS"
+    assert r.industry
     assert r.findings["fundamentals"].status == "ok"
     assert r.findings["market"].status == "ok"
     assert r.findings["concall"].status == "unavailable"  # degraded gracefully
     assert len(r.peers) == 3 and "TCS" not in [p.symbol for p in r.peers]
     assert r.scorecard["composite"]["TCS"] >= 0
+    prices = r.charts["prices"]
+    assert {"TCS", "NIFTY 50"} <= set(prices) and len(prices["TCS"]["close"]) > 100
+    assert r.charts["tables"]["profit_loss"]["periods"][-1] == "TTM"
     md = render_markdown(r)
     assert "Edge scorecard" in md and "not investment advice" in md
     # deterministic narrative obeys the same grounding contract
-    _, stats = verify_narrative(r.narrative, _store_from(r))
+    _, stats = verify_narrative(r.narrative, FactStore.from_report(r))
     assert stats["numeric_pass_rate"] == 100.0, "\n".join(f"{i['sentence']} -> {i['issues']}" for i in stats["issues"])
     paths = save_report(r, tmp_path / "out")
     assert all(p.exists() for p in paths.values())
 
 
-def _store_from(r):
-    s = FactStore()
-    for f in r.facts:
-        s.facts[f.id] = f
-        s._by_key[f.key] = f.id
-    for e in r.excerpts:
-        s.excerpts[e.id] = e
-    return s
+def test_research_then_write_is_pure(tmp_path, offline_providers):
+    """write() must not mutate a (cached) research Report and must reuse its fact IDs."""
+    from dalal_agents.config import Settings
+    from dalal_agents.orchestrator import research, write
+
+    s = Settings(llm_provider="none", cache_dir=tmp_path, n_peers=2)
+    base = research("TCS", s)
+    assert base.narrative == {} and base.facts
+    before = base.model_dump_json()
+    out = write(base, s)
+    assert base.model_dump_json() == before
+    assert out.narrative and out.verification["mode"] == "deterministic"
+    assert [f.id for f in out.facts] == [f.id for f in base.facts]

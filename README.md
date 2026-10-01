@@ -3,6 +3,10 @@
 **Open-source multi-agent equity research for Indian stocks (NSE/BSE).**
 One command gives you a research report on any listed Indian company and its closest competitors. Every number in it is cited.
 
+### 👉 [Try it in your browser](https://huggingface.co/spaces/rohanshah8/dalal-agents) — no install, no sign-up
+
+The web app runs without an API key: you get every number, chart and the competitor scorecard. Paste your own Anthropic or OpenAI key in the sidebar to add the AI analyst narrative. The key is used only for that run and is never stored.
+
 ```bash
 dalal analyze TCS
 dalal analyze "hdfc bank"
@@ -10,6 +14,7 @@ dalal analyze 500325          # BSE code works too
 ```
 
 [![CI](https://github.com/rohanshah8/dalal-agents/actions/workflows/ci.yml/badge.svg)](https://github.com/rohanshah8/dalal-agents/actions)
+[![Open in Spaces](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Open%20app-yellow)](https://huggingface.co/spaces/rohanshah8/dalal-agents)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue) ![License](https://img.shields.io/badge/license-MIT-green)
 
 > ⚠️ **Not investment advice.** Dalal Agents is an educational research tool. It never issues buy/sell/hold calls or target prices, and the authors are not SEBI-registered Research Analysts. See the [disclaimer](#disclaimer).
@@ -113,6 +118,31 @@ print(report.findings["fundamentals"].data["roce"])
 open("tcs.md", "w").write(render_markdown(report))
 ```
 
+## Web app
+
+```bash
+pip install -e ".[web]"
+streamlit run app/streamlit_app.py          # http://localhost:8501
+```
+
+Or with Docker (the same image that runs on Hugging Face):
+
+```bash
+docker build -t dalal-agents . && docker run -p 7860:7860 dalal-agents   # http://localhost:7860
+```
+
+How the app works:
+- **Tabs:** Summary, Competitors & edge (scorecard heatmap), Price & trend vs peers and Nifty, Financials, Ownership, Management & plans (concall guidance with quotes), News, and the full report with sources.
+- **Downloads:** Markdown, HTML and JSON.
+- **Caching:** key-free analyses are cached for 6 hours and shared by all visitors, so popular stocks load instantly. Analyses that use a visitor's API key are never cached.
+- **Load limits:** at most 2 analyses run at once per server (`DALAL_MAX_CONCURRENT`). Others wait in a queue.
+
+### Deploy your own Space
+1. Create a Hugging Face [access token](https://huggingface.co/settings/tokens) with **write** permission.
+2. Create a new Space: SDK **Docker**, template **Blank**, hardware **CPU basic (free)**.
+3. In this GitHub repo, open **Settings → Secrets and variables → Actions**. Add the secret `HF_TOKEN`. If your Space isn't `rohanshah8/dalal-agents`, also add the variable `HF_SPACE=<user>/<space>`.
+4. Push to `main`. Once CI passes, the **Deploy to Hugging Face Space** workflow publishes the app. You can also run it manually from the Actions tab.
+
 ## Report contents
 
 1. Key metrics strip
@@ -184,15 +214,15 @@ Please respect each source's terms of use. For heavy or commercial use, plug in 
 ## Development
 
 ```bash
-pip install -e ".[dev]"
-pytest -q            # 40 offline tests: parsers on real HTML fixtures, finance maths, verifier, end-to-end pipeline
+pip install -e ".[dev,web]"
+pytest -q            # 43 offline tests: parsers on real HTML fixtures, finance maths, verifier, end-to-end pipeline
 ```
 
-Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Good first issues: more sector playbooks (insurance, real estate), a Streamlit UI, annual-report RAG, and a quarterly "promise vs delivery" tracker for concall guidance.
+Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Good first issues: more sector playbooks (insurance, real estate), annual-report RAG, and a quarterly "promise vs delivery" tracker for concall guidance.
 
 ## Roadmap
 
-- [ ] Streamlit web UI
+- [x] Streamlit web UI, hosted on Hugging Face Spaces
 - [ ] Track concall guidance against actual delivery across 8 quarters
 - [ ] Annual-report RAG (segment data, related-party transactions, contingent liabilities)
 - [ ] Global peers (e.g. TCS vs Accenture, Cognizant)

@@ -27,6 +27,7 @@ from .agents import (
 from .agents.competition import flat_metrics
 from .agents.synthesis import SECTIONS, WRITER_SYSTEM, WRITER_USER, verify_narrative
 from .config import Settings
+from .facts import FactStore
 from .models import Finding, Peer, Report
 from .narrative import deterministic_narrative
 
@@ -61,6 +62,18 @@ def resolve_symbol(ctx: Context, query: str) -> str:
 
 
 def analyze(query: str, settings: Settings | None = None, progress=None) -> Report:
+    """Full pipeline: research (stages 0–2) then write (stage 3)."""
+    settings = settings or Settings()
+    report = research(query, settings, progress)
+    return write(report, settings, progress)
+
+
+def research(query: str, settings: Settings | None = None, progress=None) -> Report:
+    """Stages 0–2: data, research agents, peers, edge scorecard. No LLM writing.
+
+    The returned Report is self-contained (facts, excerpts, industry, price series), so it can be
+    cached and later passed to `write()` with different LLM settings.
+    """
     settings = settings or Settings()
     ctx = Context.create(settings)
     ctx.progress = progress
@@ -72,7 +85,7 @@ def analyze(query: str, settings: Settings | None = None, progress=None) -> Repo
     prof = data.profile
     say(f"Found {prof.name} ({symbol}) · {' › '.join(prof.sector_path[-2:])}"
         + (" · financial-sector metrics" if prof.is_financial else ""))
-    report = Report(symbol=symbol, name=prof.name, model=ctx.llm.model if ctx.llm.enabled else None)
+    report = Report(symbol=symbol, name=prof.name, industry=" › ".join(prof.sector_path[-2:]))
 
     ys = ctx.yahoo.resolve(symbol)
     ctx.yahoo_symbols[symbol] = ys
@@ -84,9 +97,6 @@ def analyze(query: str, settings: Settings | None = None, progress=None) -> Repo
         report.warnings.append(f"Benchmark (NIFTY 50) unavailable: {e}")
     if ys is None:
         report.warnings.append("No Yahoo Finance ticker found — price analytics skipped.")
-    if not ctx.llm.enabled:
-        report.warnings.append("No LLM configured — deterministic narrative used (set ANTHROPIC_API_KEY "
-                               "or OPENAI_API_KEY for AI-written analysis).")
 
     # ---------------- Stage 1
     say("Stage 1/3 · research agents (market, fundamentals, ownership, filings, concalls, news, competitors)…")
@@ -125,8 +135,29 @@ def analyze(query: str, settings: Settings | None = None, progress=None) -> Repo
     else:
         report.warnings.append("No competitors could be analysed.")
 
-    # ---------------- Stage 3
-    say("Stage 3/3 · writing report" + (f" with {ctx.llm.model}…" if ctx.llm.enabled else " (deterministic)…"))
+    report.charts = {"prices": _price_series(ctx, [symbol] + [p.symbol for p in peers]),
+                     "tables": _tables(data)}
+    report.facts = list(ctx.facts.facts.values())
+    report.excerpts = list(ctx.facts.excerpts.values())
+    return report
+
+
+def write(report: Report, settings: Settings | None = None, progress=None) -> Report:
+    """Stage 3: grounded LLM narrative + verifier, or the deterministic narrative without an LLM.
+
+    Works on a fresh copy, so a cached research Report is never mutated.
+    """
+    settings = settings or Settings()
+    report = report.model_copy(deep=True)
+    ctx = Context.create(settings)
+    ctx.progress = progress
+    ctx.facts = FactStore.from_report(report)
+    report.model = ctx.llm.model if ctx.llm.enabled else None
+    report.verification = {}
+    if not ctx.llm.enabled:
+        report.warnings.append("No LLM configured — deterministic narrative used (set ANTHROPIC_API_KEY "
+                               "or OPENAI_API_KEY for AI-written analysis).")
+    ctx.say("Stage 3/3 · writing report" + (f" with {ctx.llm.model}…" if ctx.llm.enabled else " (deterministic)…"))
     narrative = None
     if ctx.llm.enabled:
         try:
@@ -136,17 +167,46 @@ def analyze(query: str, settings: Settings | None = None, progress=None) -> Repo
     if narrative:
         narrative, stats = verify_narrative(narrative, ctx.facts, strict=settings.strict)
         report.verification = stats
-        say(f"  ✓ verifier: {stats['passed']}/{stats['sentences']} sentences passed "
-            f"({stats.get('numeric_pass_rate')}% of numeric sentences grounded)")
+        ctx.say(f"  ✓ verifier: {stats['passed']}/{stats['sentences']} sentences passed "
+                f"({stats.get('numeric_pass_rate')}% of numeric sentences grounded)")
     else:
         narrative = deterministic_narrative(report, ctx.facts)
         report.verification = {"mode": "deterministic"}
     report.narrative = narrative
-    report.facts = list(ctx.facts.facts.values())
-    report.excerpts = list(ctx.facts.excerpts.values())
     if ctx.llm.enabled:
         report.verification["llm_usage"] = dict(ctx.llm.usage)
     return report
+
+
+def _tables(data) -> dict:
+    """Annual P&L, quarters and shareholding as plain {periods, rows} dicts for charts."""
+    out = {}
+    for name in ("profit_loss", "quarters", "shareholding"):
+        t = getattr(data, name, None)
+        if t is not None:
+            out[name] = {"periods": list(t.periods), "rows": {k: list(v) for k, v in t.rows.items()}}
+    return out
+
+
+def _price_series(ctx: Context, symbols: list[str]) -> dict:
+    """Weekly closes (≈3y) for the target, peers and NIFTY 50 — small enough to embed in the report."""
+    out = {}
+
+    def weekly(df):
+        w = df["Close"].resample("W-FRI").last().dropna().tail(160)
+        return {"dates": [d.strftime("%Y-%m-%d") for d in w.index], "close": [round(float(x), 2) for x in w]}
+
+    for sym in symbols:
+        ys = ctx.yahoo_symbols.get(sym)
+        if not ys:
+            continue
+        try:
+            out[sym] = weekly(ctx.yahoo.history(ys, ctx.settings.price_history))
+        except Exception as e:
+            log.debug("price series unavailable for %s: %s", sym, e)
+    if ctx.benchmark is not None and len(ctx.benchmark):
+        out["NIFTY 50"] = weekly(ctx.benchmark)
+    return out
 
 
 def write_narrative(ctx: Context, report: Report) -> dict[str, str]:
@@ -165,7 +225,7 @@ def write_narrative(ctx: Context, report: Report) -> dict[str, str]:
             cc.append({"date": c["date"], "tone": round(c["tone"]["net_tone"], 3), "extraction": ext})
     user = WRITER_USER.format(
         name=report.name, symbol=sym,
-        industry=" › ".join(ctx.company_data[sym].profile.sector_path[-2:]),
+        industry=report.industry or "",
         peers=", ".join(f"{p.symbol} ({p.name})" for p in report.peers) or "none",
         facts_target=store.render_facts(ids=target_ids),
         facts_peers=store.render_facts(ids=peer_ids) or "none",

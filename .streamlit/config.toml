@@ -1,0 +1,10 @@
+[theme]
+primaryColor = "#0b6bcb"
+
+[server]
+# Spaces terminates TLS and proxies requests; keep XSRF on, websocket compression on.
+enableXsrfProtection = true
+maxUploadSize = 1
+
+[client]
+toolbarMode = "minimal"
