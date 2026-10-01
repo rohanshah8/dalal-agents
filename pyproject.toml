@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dalal-agents"
+version = "0.1.0"
+description = "Open-source multi-agent equity research for Indian stocks (NSE/BSE): fundamentals, technicals, concalls, news, competitors and edge analysis — every claim cited."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Rohan Shah" }]
+keywords = ["india", "stocks", "nse", "bse", "equity-research", "llm", "agents", "finance"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Topic :: Office/Business :: Financial :: Investment",
+]
+dependencies = [
+  "requests>=2.31",
+  "beautifulsoup4>=4.12",
+  "lxml>=4.9",
+  "pandas>=2.0",
+  "numpy>=1.24",
+  "yfinance>=0.2.40",
+  "feedparser>=6.0",
+  "pydantic>=2.5",
+  "typer>=0.12",
+  "rich>=13",
+  "pypdf>=4.0",
+  "markdown>=3.5",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.5"]
+
+[project.scripts]
+dalal = "dalal_agents.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "I", "UP"]
+ignore = ["E501", "B008", "B905", "UP045", "UP007"]  # B905: series are intentionally ragged
