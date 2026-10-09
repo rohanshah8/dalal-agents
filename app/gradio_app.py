@@ -18,26 +18,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))  # for `import charts, 
 
 import charts  # noqa: E402
 import core  # noqa: E402
+import dashboard  # noqa: E402
 
 from dalal_agents import __version__  # noqa: E402
 from dalal_agents.models import Report  # noqa: E402
-from dalal_agents.outlook.render import loading_html  # noqa: E402
 from dalal_agents.outlook.render import render_html as render_outlook
-from dalal_agents.report import DISCLAIMER, render_html, render_markdown  # noqa: E402
+from dalal_agents.report import render_html, render_markdown  # noqa: E402
 
-TAB_NAMES = ["📋 Summary", "🥊 Competitors & edge", "📈 Price & trend", "📊 Financials", "👥 Ownership",
-             "🎙️ Management & plans", "📰 News", "📄 Full report & sources", "🔭 Outlook & alternatives"]
-
-LANDING = f"""
-### 🐂 {core.TAGLINE}
-
-| 1 · Research | 2 · Compare | 3 · Explain |
-|---|---|---|
-| 7 agents fetch 12 years of financials, price trends vs Nifty, shareholding, filings, earnings-call transcripts and news. | Competitors are found automatically, put through the same maths, and ranked on growth, profitability, balance sheet, cash quality, valuation and momentum. | With your API key, an LLM writes the analyst narrative using only cited facts, and a verifier checks every number. |
-
-👈 **Type a company or pick an example, then press Analyse.** A fresh analysis takes about 15 s
-(quantitative) or 1–2 min (with AI narrative). Popular stocks are cached.
-"""
+LANDING = "Search for a stock to see its outlook, stronger alternatives and key trade-offs."
 
 THEME = gr.themes.Soft(primary_hue="blue", font=["Arial", "Helvetica", "sans-serif"]).set(
     body_text_weight="400",
@@ -48,6 +36,14 @@ THEME = gr.themes.Soft(primary_hue="blue", font=["Arial", "Helvetica", "sans-ser
 )
 
 CSS = """
+.gradio-container {width:100%!important;max-width:1280px!important;margin:auto!important;font-family:Arial,Helvetica,sans-serif}
+.gradio-container .main {width:100%;padding:16px!important}
+#rd-brand {margin-bottom:0} #rd-brand h3 {font-size:20px;margin:0}
+#rd-search {align-items:end;gap:12px} #rd-search button {min-height:44px}
+#rd-settings {margin-bottom:8px} #rd-progress {min-height:0}
+#rd-dashboard {border:0;padding:0;background:transparent}
+#rd-dashboard .html-container {padding:0!important}
+@media (max-width:640px) {.gradio-container {padding:10px!important}.gradio-container .main{padding:0!important} #rd-search {gap:8px} #rd-search>div {min-width:0!important} #rd-brand h3 {font-size:17px}}
 .kpi table { width: 100%; text-align: center; }
 .kpi th { font-weight: 500; opacity: .75; }
 .kpi td { font-size: 1.25rem; font-weight: 600; }
@@ -92,6 +88,7 @@ def render(r: dict, secret: str | None = None) -> dict:
     news = (c(sec.get("News flow & sentiment")) or "_No news summary._") + "\n\n" + core.headlines_md(r)
     f_md, f_html, f_json = _downloads(r, md)
     return {
+        "dashboard": dashboard.render(r),
         "header": f"## {r['name']} · `{r['symbol']}`\n{core.header_line(r)}\n\n{notes}",
         "kpis": _kpi_md(r),
         "summary": summary, "edges": side, "composite": charts.composite_bar(r),
@@ -109,71 +106,69 @@ def render(r: dict, secret: str | None = None) -> dict:
 
 
 def build() -> gr.Blocks:
-    with gr.Blocks(title="Dalal Agents · Open-source finance research") as demo:
+    with gr.Blocks(title="Dalal Agents · Stock research at a glance") as demo:
         out: dict[str, gr.components.Component] = {}
-        with gr.Row(equal_height=False):
-            with gr.Column(scale=1, min_width=280):
-                gr.Markdown(f"# 🐂 Dalal Agents\nOpen-source finance research for Indian stocks · v{__version__}")
-                query = gr.Textbox(label="Company", placeholder="TCS, 500325, or 'hdfc bank'",
-                                   info="NSE symbol, BSE code or company name")
-                gr.Examples(core.EXAMPLES, inputs=query, label="Examples")
+        gr.Markdown("### 🐂 Dalal Agents", elem_id="rd-brand")
+        with gr.Row(elem_id="rd-search"):
+            query = gr.Textbox(label="Find a stock", show_label=False, placeholder="Search company or NSE/BSE ticker", scale=6,
+                               min_width=180)
+            go = gr.Button("Analyse", variant="primary", scale=1, min_width=100)
+        with gr.Accordion("Research settings & examples", open=False, elem_id="rd-settings"):
+            gr.Examples(core.EXAMPLES, inputs=query, label="Examples")
+            with gr.Row():
                 peers = gr.Slider(2, 6, value=4, step=1, label="Competitors to analyse")
                 concalls = gr.Slider(0, 3, value=2, step=1, label="Earnings-call transcripts to read",
-                                     info="Read by the LLM; ignored without a key")
-                with gr.Accordion("🤖 AI narrative (bring your own key)", open=False):
-                    provider = gr.Radio(list(core.DEFAULT_MODELS), value="Anthropic (Claude)", label="Provider")
-                    key = gr.Textbox(label="API key", type="password",
-                                     info="Used only for this run. Never stored or logged.")
-                    model = gr.Textbox(label="Model", value=core.DEFAULT_MODELS["Anthropic (Claude)"])
-                    base_url = gr.Textbox(label="Base URL (OpenAI-compatible only)",
-                                          value="https://api.openai.com/v1", visible=False)
-                    gr.Markdown("<small>No key? You still get every number, chart and the peer scorecard.</small>")
-                go = gr.Button("🔍 Analyse", variant="primary")
-                gr.Markdown(f"<small>[GitHub]({core.REPO}) · [Methodology]({core.REPO}/blob/main/docs/DESIGN.md)"
-                            f"</small>\n\n<small>{DISCLAIMER.lstrip('> ')}</small>")
-            with gr.Column(scale=3):
-                progress = gr.Markdown(LANDING)
-                out["header"] = gr.Markdown()
-                out["kpis"] = gr.Markdown(elem_classes="kpi")
+                                     info="Used for the optional AI report")
+            with gr.Accordion("Optional AI report", open=False):
+                provider = gr.Radio(list(core.DEFAULT_MODELS), value="Anthropic (Claude)", label="Provider")
+                key = gr.Textbox(label="API key", type="password", info="Used only for this run. Never stored or logged.")
+                model = gr.Textbox(label="Model", value=core.DEFAULT_MODELS["Anthropic (Claude)"])
+                base_url = gr.Textbox(label="Base URL (OpenAI-compatible only)",
+                                      value="https://api.openai.com/v1", visible=False)
+                gr.Markdown("The dashboard and forecasts work without an API key.")
+        progress = gr.Markdown(LANDING, elem_id="rd-progress")
+        with gr.Column(visible=False) as results:
+            out["dashboard"] = gr.HTML(elem_id="rd-dashboard", apply_default_css=False)
+            with gr.Accordion("Advanced Analysis", open=False, visible=False) as advanced:
                 with gr.Row():
                     out["dl_html"] = gr.DownloadButton("⬇️ HTML", visible=False, size="sm")
                     out["dl_md"] = gr.DownloadButton("⬇️ Markdown", visible=False, size="sm")
                     out["dl_json"] = gr.DownloadButton("⬇️ JSON", visible=False, size="sm")
-                with gr.Tabs(visible=False) as tabs:
-                    with gr.Tab(TAB_NAMES[0]):
-                        with gr.Row():
-                            with gr.Column(scale=3):
-                                out["summary"] = gr.Markdown()
-                            with gr.Column(scale=2):
-                                out["edges"] = gr.Markdown()
-                                out["composite"] = gr.Plot(show_label=False)
-                    with gr.Tab(TAB_NAMES[1]):
-                        out["heatmap"] = gr.Plot(show_label=False)
-                        out["competition"] = gr.Markdown()
-                    with gr.Tab(TAB_NAMES[2]):
-                        with gr.Row():
-                            out["price_peers"] = gr.Plot(show_label=False)
-                            out["price_sma"] = gr.Plot(show_label=False)
-                        out["price_text"] = gr.Markdown()
-                    with gr.Tab(TAB_NAMES[3]):
-                        with gr.Row():
-                            out["annual"] = gr.Plot(show_label=False)
-                            out["quarterly"] = gr.Plot(show_label=False)
-                        out["fin_text"] = gr.Markdown()
-                    with gr.Tab(TAB_NAMES[4]):
-                        out["ownership_chart"] = gr.Plot(show_label=False)
-                        out["ownership_text"] = gr.Markdown()
-                    with gr.Tab(TAB_NAMES[5]):
-                        out["management"] = gr.Markdown()
-                    with gr.Tab(TAB_NAMES[6]):
-                        out["news"] = gr.Markdown()
-                    with gr.Tab(TAB_NAMES[7]):
-                        out["full"] = gr.Markdown()
-                    with gr.Tab(TAB_NAMES[8]):
-                        out["outlook"] = gr.HTML()
+                with gr.Accordion("Business summary & detailed scores", open=False):
+                    out["summary"] = gr.Markdown()
+                    out["edges"] = gr.Markdown()
+                    out["composite"] = gr.Plot(show_label=False)
+                    out["heatmap"] = gr.Plot(show_label=False)
+                    out["competition"] = gr.Markdown()
+                with gr.Accordion("Price history & detailed financials", open=False):
+                    with gr.Row():
+                        out["price_peers"] = gr.Plot(show_label=False)
+                        out["price_sma"] = gr.Plot(show_label=False)
+                    out["price_text"] = gr.Markdown()
+                    with gr.Row():
+                        out["annual"] = gr.Plot(show_label=False)
+                        out["quarterly"] = gr.Plot(show_label=False)
+                    out["fin_text"] = gr.Markdown()
+                with gr.Accordion("Ownership", open=False):
+                    out["ownership_chart"] = gr.Plot(show_label=False)
+                    out["ownership_text"] = gr.Markdown()
+                with gr.Accordion("Management & earnings calls", open=False):
+                    out["management"] = gr.Markdown()
+                with gr.Accordion("Detailed news", open=False):
+                    out["news"] = gr.Markdown()
+                with gr.Accordion("Forecast evidence, risks & sources", open=False):
+                    out["outlook"] = gr.HTML()
+                with gr.Accordion("Full report & sources", open=False):
+                    out["full"] = gr.Markdown()
+                with gr.Accordion("Analysis log & data notices", open=False):
+                    out["log"] = gr.Markdown()
+                gr.Markdown("Scores are relative to the analysed peers: Strong ≥70, Weak ≤30, otherwise Neutral. "
+                            "The four displayed companies share ranks when tied. Overall rank includes all scored factors. "
+                            "Risk flags consider observed volatility, drawdown, liquidity, events and data gaps; they are not a personal risk assessment.")
+                gr.Markdown(f"[GitHub]({core.REPO}) · [Methodology]({core.REPO}/blob/main/docs/DESIGN.md) · v{__version__}")
 
         names = list(out)
-        outputs = [progress, tabs] + [out[n] for n in names]
+        outputs = [progress, results, advanced] + [out[n] for n in names]
 
         def on_provider(p):
             return gr.update(value=core.DEFAULT_MODELS[p]), gr.update(visible=p != "Anthropic (Claude)")
@@ -186,34 +181,27 @@ def build() -> gr.Blocks:
                    "base_url": (url or "").strip()} if api_key else None
             lines: list[str] = []
             skip = [gr.skip()] * len(names)
-            initial = [gr.update(visible=False) if n.startswith("dl_") else loading_html() if n == "outlook" else "" if isinstance(out[n], (gr.Markdown, gr.HTML)) else None for n in names]
-            yield ["### ⏳ Analysing…", gr.update(visible=True)] + initial
+            initial = [gr.update(visible=False) if n.startswith("dl_") else dashboard.loading_html() if n == "dashboard" else "" if isinstance(out[n], (gr.Markdown, gr.HTML)) else None for n in names]
+            yield [gr.update(value="Analysing…", visible=True), gr.update(visible=True), gr.update(visible=False, open=False)] + initial
             try:
                 for kind, payload in core.analyze_stream(q, n_peers, n_concalls, llm):
                     if kind == "done":
                         vals = render(payload, api_key)
-                        dl = {"dl_md", "dl_html", "dl_json"}
-                        final = [gr.update(value=vals[n], visible=True) if n in dl else vals[n] for n in names]
-                        log = "\n".join(f"- {x}" for x in lines)
-                        yield [f"<details><summary>✅ Analysis log</summary>\n\n{log}\n\n</details>",
-                               gr.update(visible=True)] + final
+                        vals["log"] = "### Analysis log\n\n" + "\n".join(f"- {x}" for x in lines)
+                        vals["log"] += "\n\n" + "\n".join(t for _, t in core.notices(payload, api_key))
+                        final = [gr.update(value=vals[n], visible=True) if n.startswith("dl_") else vals[n] for n in names]
+                        yield [gr.update(value="", visible=False), gr.update(visible=True), gr.update(visible=True, open=False)] + final
                         return
                     lines.append(core.fmt_progress(payload))
-                    yield ["### ⏳ Analysing…\n\n" + "\n".join(f"- {x}" for x in lines[-14:]), gr.skip()] + skip
-            except (LookupError, ValueError) as e:
-                from dalal_agents.outlook.render import error_html
-                failure = [error_html() if n == "outlook" else gr.skip() for n in names]
-                yield [f"### ❌ {core.redact(e, api_key)}", gr.skip()] + failure
-            except Exception as e:
-                from dalal_agents.outlook.render import error_html
-                failure = [error_html() if n == "outlook" else gr.skip() for n in names]
-                yield [f"### ❌ Analysis failed\n\n`{core.redact(e, api_key)}`", gr.skip()] + failure
+                    yield ["Analysing · " + dashboard.esc(core.redact(payload, api_key)[:120]), gr.skip(), gr.skip()] + skip
+            except Exception as exc:
+                message = core.redact(exc, api_key) if isinstance(exc, (LookupError, ValueError)) else "Please retry. The data provider may be unavailable."
+                failure = [dashboard.error_html(message) if n == "dashboard" else gr.skip() for n in names]
+                yield [gr.update(value="", visible=False), gr.update(visible=True), gr.update(visible=False)] + failure
 
         inputs = [query, peers, concalls, provider, key, model, base_url]
-        go.click(analyse, inputs, outputs, api_visibility="private", concurrency_limit=core.MAX_CONCURRENT, concurrency_id="analyse",
-                 show_progress="hidden")
-        query.submit(analyse, inputs, outputs, api_visibility="private", concurrency_limit=core.MAX_CONCURRENT, concurrency_id="analyse",
-                     show_progress="hidden")
+        go.click(analyse, inputs, outputs, api_visibility="private", concurrency_limit=core.MAX_CONCURRENT, concurrency_id="analyse", show_progress="hidden")
+        query.submit(analyse, inputs, outputs, api_visibility="private", concurrency_limit=core.MAX_CONCURRENT, concurrency_id="analyse", show_progress="hidden")
     demo.queue(max_size=int(os.environ.get("DALAL_QUEUE_SIZE", "20")))
     return demo
 

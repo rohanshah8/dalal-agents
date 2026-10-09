@@ -22,13 +22,15 @@ def test_app_runs_offline_analysis(tmp_path, monkeypatch):
     stub_providers(monkeypatch)
     monkeypatch.setenv("DALAL_CACHE_DIR", str(tmp_path))
     at = AppTest.from_file(APP, default_timeout=120).run()
-    at.sidebar.text_input(key="query").input("TCS")
-    next(b for b in at.sidebar.button if "Analyse" in b.label).click().run()
+    at.text_input(key="query").input("TCS")
+    next(b for b in at.button if "Analyse" in b.label).click().run()
     assert not at.exception, at.exception
     assert not at.error, [e.value for e in at.error]
     assert any("TCS" in m.value for m in at.markdown)
-    assert len(at.tabs) == 9
-    assert {m.label for m in at.metric} >= {"P/E", "ROE", "1Y return"}
+    assert len(at.tabs) == 0
+    assert any("Stock Snapshot" in str(element.proto) for element in at.get("html"))
+    advanced = next(e for e in at.expander if e.label == "Advanced Analysis")
+    assert not advanced.proto.expanded
 
 
 

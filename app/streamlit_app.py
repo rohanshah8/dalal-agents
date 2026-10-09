@@ -15,10 +15,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))  # for `import charts, 
 
 import charts  # noqa: E402
 import core  # noqa: E402
+import dashboard  # noqa: E402
 
 from dalal_agents import __version__  # noqa: E402
 from dalal_agents.models import Report  # noqa: E402
-from dalal_agents.outlook.render import loading_html  # noqa: E402
 from dalal_agents.outlook.render import render_html as render_outlook
 from dalal_agents.report import DISCLAIMER, render_html, render_markdown  # noqa: E402
 
@@ -29,19 +29,19 @@ st.set_page_config(page_title="Dalal Agents · Open-source finance research", pa
 
 
 def run_analysis(query: str, n_peers: int, n_concalls: int, llm: dict | None) -> dict:
-    skeleton = st.empty()
-    skeleton.html(loading_html())
+    progress_area = st.empty()
     try:
-        with st.status(f"Analysing {query}…", expanded=True) as status:
-            for kind, payload in core.analyze_stream(query, n_peers, n_concalls, llm):
-                if kind == "done":
-                    status.update(state="complete", expanded=False)
-                    return payload
-                status.write(core.fmt_progress(payload))
-                if payload.startswith(("Stage", "Found", "Done", "The server is busy")):
-                    status.update(label=payload.strip()[:90])
+        with progress_area.container():
+            st.html(dashboard.loading_html())
+            with st.status(f"Analysing {query}…", expanded=False) as status:
+                for kind, payload in core.analyze_stream(query, n_peers, n_concalls, llm):
+                    if kind == "done":
+                        return payload
+                    status.write(core.fmt_progress(payload))
+                    if payload.startswith(("Stage", "Found", "Done", "The server is busy")):
+                        status.update(label=payload.strip()[:90])
     finally:
-        skeleton.empty()
+        progress_area.empty()
     raise RuntimeError("analysis ended without a result")
 
 
@@ -130,87 +130,81 @@ def show_report(r: dict):
     rep = Report.model_validate(r)
     md = render_markdown(rep)
     sec = core.sections(md)
-    header(r)
-    for level, text in core.notices(r, st.session_state.get("api_key")):
-        (st.info if level == "info" else st.warning)(text)
-    d1, d2, d3, _ = st.columns([1, 1, 1, 5])
-    stem = f"{r['symbol']}_{r['generated_at'][:10]}"
-    d1.download_button("⬇️ HTML", render_html(md, f"{r['name']} — Dalal Agents"), file_name=f"{stem}.html",
-                       mime="text/html")
-    d2.download_button("⬇️ Markdown", md, file_name=f"{stem}.md", mime="text/markdown", key="md_top")
-    d3.download_button("⬇️ JSON", json.dumps(r, indent=2, ensure_ascii=False, default=str),
-                       file_name=f"{stem}.json", mime="application/json")
-    tabs = st.tabs(["📋 Summary", "🥊 Competitors & edge", "📈 Price & trend", "📊 Financials", "👥 Ownership",
-                    "🎙️ Management & plans", "📰 News", "📄 Full report & sources", "🔭 Outlook & alternatives"])
-    with tabs[0]:
-        tab_summary(r, sec)
-    with tabs[1]:
-        tab_competition(r, sec)
-    with tabs[2]:
-        tab_price(r, sec)
-    with tabs[3]:
-        tab_financials(r, sec)
-    with tabs[4]:
-        tab_ownership(r, sec)
-    with tabs[5]:
-        tab_management(r, sec)
-    with tabs[6]:
-        tab_news(r, sec)
-    with tabs[7]:
-        tab_full(r, md)
-    with tabs[8]:
-        st.html(render_outlook(r.get("outlook")))
+    st.html(dashboard.render(r))
+    with st.expander("Advanced Analysis", expanded=False):
+        for level, text in core.notices(r, st.session_state.get("api_key")):
+            (st.info if level == "info" else st.warning)(text)
+        d1, d2, d3 = st.columns(3)
+        stem = f"{r['symbol']}_{r['generated_at'][:10]}"
+        d1.download_button("⬇️ HTML", render_html(md, f"{r['name']} — Dalal Agents"), file_name=f"{stem}.html", mime="text/html")
+        d2.download_button("⬇️ Markdown", md, file_name=f"{stem}.md", mime="text/markdown")
+        d3.download_button("⬇️ JSON", json.dumps(r, indent=2, ensure_ascii=False, default=str), file_name=f"{stem}.json", mime="application/json")
+        with st.expander("Business summary & detailed scores"):
+            tab_summary(r, sec)
+            tab_competition(r, sec)
+        with st.expander("Price history & detailed financials"):
+            tab_price(r, sec)
+            tab_financials(r, sec)
+        with st.expander("Ownership"):
+            tab_ownership(r, sec)
+        with st.expander("Management & earnings calls"):
+            tab_management(r, sec)
+        with st.expander("Detailed news"):
+            tab_news(r, sec)
+        with st.expander("Forecast evidence, risks & sources"):
+            st.html(render_outlook(r.get("outlook")))
+        with st.expander("Full report & sources"):
+            _md(md)
+        st.caption("Scores are relative to peers: Strong ≥70, Weak ≤30, otherwise Neutral. Overall rank includes all scored factors; ties share a rank. Risk flags consider volatility, drawdown, liquidity, events and missing data.")
 
 
 # ------------------------------------------------------------------ page
-def sidebar() -> tuple[str | None, int, int, dict | None]:
-    sb = st.sidebar
-    sb.markdown("# 🐂 Dalal Agents")
-    sb.caption("Open-source finance research for Indian stocks")
-    query = sb.text_input("Company", key="query", placeholder="TCS, 500325, or 'hdfc bank'",
-                          help="NSE symbol, BSE code or company name")
-    cols = sb.columns(3)
-    for i, ex in enumerate(EXAMPLES):
-        if cols[i % 3].button(ex, key=f"ex_{ex}", width="stretch"):
-            st.session_state["pending_query"] = ex
-    n_peers = sb.slider("Competitors to analyse", 2, 6, 4)
-    n_concalls = sb.slider("Earnings-call transcripts to read", 0, 3, 2,
-                           help="Transcripts are read by the LLM; ignored in quantitative mode.")
-    with sb.expander("🤖 AI narrative (bring your own key)", expanded=False):
-        provider = st.radio("Provider", list(DEFAULT_MODELS), horizontal=False)
-        key = st.text_input("API key", type="password", key="api_key",
-                            help="Used only for this run, held in memory, never logged or stored.")
-        model = st.text_input("Model", value=DEFAULT_MODELS[provider], key=f"model_{provider}")
-        base_url = ""
-        if provider == "OpenAI-compatible":
-            base_url = st.text_input("Base URL", value="https://api.openai.com/v1",
-                                     help="Any OpenAI-compatible endpoint: OpenAI, Groq, OpenRouter, Together…")
-        st.caption("No key? You still get every number, chart and the peer scorecard.")
-    go_clicked = sb.button("🔍 Analyse", type="primary", width="stretch")
-    sb.markdown(f"---\n[GitHub]({REPO}) · [Methodology]({REPO}/blob/main/docs/DESIGN.md) · v{__version__}")
+def controls() -> tuple[str | None, int, int, dict | None]:
+    st.markdown("### 🐂 Dalal Agents")
+    st.html("""<style>
+    .block-container{padding-top:1rem;max-width:1280px}
+    .st-key-rd-search [data-testid=stHorizontalBlock]{flex-wrap:nowrap!important;gap:8px;align-items:end}
+    .st-key-rd-search [data-testid=stColumn]{min-width:0!important;width:auto!important}
+    .st-key-rd-search [data-testid=stColumn]:first-child{flex:1 1 0!important}
+    .st-key-rd-search [data-testid=stColumn]:last-child{flex:0 0 100px!important}
+    @media(max-width:640px){.block-container{padding-left:12px;padding-right:12px}}
+    </style>""")
+    with st.container(key="rd-search"):
+        search, button = st.columns([5, 1], vertical_alignment="bottom")
+        query = search.text_input("Find a stock", key="query", label_visibility="collapsed", placeholder="Search company or NSE/BSE ticker")
+        go_clicked = button.button("Analyse", type="primary", width="stretch")
+
+    def choose(symbol):
+        st.session_state["query"] = symbol
+        st.session_state["pending_query"] = symbol
+
+    with st.expander("Research settings & examples", expanded=False):
+        cols = st.columns(3)
+        for i, ex in enumerate(EXAMPLES):
+            cols[i % 3].button(ex, key=f"ex_{ex}", width="stretch", on_click=choose, args=(ex,))
+        n_peers = st.slider("Competitors to analyse", 2, 6, 4)
+        n_concalls = st.slider("Earnings-call transcripts to read", 0, 3, 2, help="Used for the optional AI report.")
+        with st.expander("Optional AI report", expanded=False):
+            provider = st.radio("Provider", list(DEFAULT_MODELS), horizontal=False)
+            key = st.text_input("API key", type="password", key="api_key", help="Used only for this run, never logged or stored.")
+            model = st.text_input("Model", value=DEFAULT_MODELS[provider], key=f"model_{provider}")
+            base_url = ""
+            if provider == "OpenAI-compatible":
+                base_url = st.text_input("Base URL", value="https://api.openai.com/v1")
+            st.caption("The dashboard and forecasts work without an API key.")
     pending = st.session_state.pop("pending_query", None)
     chosen = pending or (query.strip() if go_clicked and query.strip() else None)
-    llm = {"provider": provider, "key": key.strip(), "model": model.strip(), "base_url": base_url.strip()} \
-        if key.strip() else None
+    llm = {"provider": provider, "key": key.strip(), "model": model.strip(), "base_url": base_url.strip()} if key.strip() else None
     return chosen, n_peers, n_concalls, llm
 
 
 def landing():
-    st.markdown("# 🐂 Dalal Agents")
-    st.markdown(f"#### {core.TAGLINE}")
-    c1, c2, c3 = st.columns(3)
-    c1.markdown("**1 · Research.** 7 agents fetch 12 years of financials, price trends vs Nifty, shareholding, "
-                "filings, earnings-call transcripts and news.")
-    c2.markdown("**2 · Compare.** Competitors are discovered automatically and put through the same maths, "
-                "then ranked on growth, profitability, balance sheet, cash quality, valuation and momentum.")
-    c3.markdown("**3 · Explain.** An LLM writes the analyst narrative using only cited facts; a verifier checks "
-                "every number against its source.")
-    st.info("👈 Type a company or pick an example in the sidebar. A fresh analysis takes about 1–2 minutes.")
+    st.caption("Search for a stock to see its outlook, stronger alternatives and key trade-offs.")
     st.caption(DISCLAIMER)
 
 
 def main():
-    chosen, n_peers, n_concalls, llm = sidebar()
+    chosen, n_peers, n_concalls, llm = controls()
     if chosen:
         if st.session_state.get("running"):
             st.warning("An analysis is already running in this session.")
@@ -230,7 +224,6 @@ def main():
         st.error(st.session_state["error"])
     if st.session_state.get("report"):
         show_report(st.session_state["report"])
-        st.caption(DISCLAIMER)
     elif not st.session_state.get("error"):
         landing()
 

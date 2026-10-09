@@ -1,6 +1,6 @@
 # Multi-horizon outlook and alternative discovery
 
-Dalal Agents generates independent 5, 21 and 63 trading-session research scenarios for NSE/BSE equities. The feature is available in the **Outlook & alternatives** tab in both UIs, exported research reports, the Python API, CLI and REST API. It requires no LLM or paid credentials.
+Dalal Agents generates independent 5, 21 and 63 trading-session research scenarios for NSE/BSE equities. The feature is available in the **Outlook** and **Better Alternatives** sections in both UIs, exported research reports, the Python API, CLI and REST API. It requires no LLM or paid credentials.
 
 This analysis is for research and educational purposes and does not constitute investment advice.
 

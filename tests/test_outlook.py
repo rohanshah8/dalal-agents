@@ -600,7 +600,7 @@ def test_native_gradio_launch_preserves_startup_hook_and_api(service, monkeypatc
         assert demo.ssr_mode is False
         with httpx.Client(base_url=url, timeout=30, trust_env=False) as client:
             assert client.get("/").status_code == 200
-            assert "Outlook & alternatives" in client.get("/config").text
+            assert "Advanced Analysis" in client.get("/config").text
             assert client.get("/api/health").json() == {"status": "ok"}
             assert "/api/openapi.json" in client.get("/api/docs").text
             schema = client.get("/api/openapi.json").json()
@@ -631,8 +631,8 @@ def test_streamlit_failure_removes_previous_forecast(monkeypatch, tmp_path):
     monkeypatch.setenv("DALAL_CACHE_DIR", str(tmp_path))
     path = Path(__file__).resolve().parents[1] / "app" / "streamlit_app.py"
     at = AppTest.from_file(str(path)).run()
-    at.sidebar.text_input(key="query").input("TCS")
-    next(b for b in at.sidebar.button if "Analyse" in b.label).click().run()
+    at.text_input(key="query").input("TCS")
+    next(b for b in at.button if "Analyse" in b.label).click().run()
     assert not at.exception
     assert at.error and "Provider unavailable" in at.error[0].value
     assert "report" not in at.session_state

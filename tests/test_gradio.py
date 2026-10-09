@@ -18,13 +18,16 @@ def test_gradio_render_and_handler(tmp_path, offline_providers, monkeypatch):
     fn = next(f for f in demo.fns.values() if getattr(f.fn, "__name__", "") == "analyse").fn
     events = list(fn("TCS", 3, 0, "Anthropic (Claude)", "", "", ""))
     assert len(events) > 3
-    assert "Analysing" in events[0][0]
+    assert "Analysing" in events[0][0]["value"]
     last = events[-1]
-    assert "Analysis log" in last[0]
+    assert last[0]["visible"] is False
+    assert last[2]["open"] is False
+    assert any(isinstance(v, str) and "Stock Snapshot" in v for v in last)
     n_out = len(last)
     assert all(len(e) == n_out for e in events)
     vals = gradio_app.render(_report(core), None)
-    assert "TCS" in vals["header"] and "P/E" in vals["kpis"]
+    assert "TCS" in vals["dashboard"] and "Investment Checklist" in vals["dashboard"]
+    assert not any(block.get("type") == "tabitem" for block in demo.config["components"])
     for k in ("heatmap", "composite", "price_peers", "price_sma", "annual", "quarterly", "ownership_chart"):
         assert vals[k] is not None, k
     for k in ("dl_md", "dl_html", "dl_json"):
@@ -41,7 +44,8 @@ def test_gradio_handler_reports_bad_query(monkeypatch):
 
     fn = next(f for f in gradio_app.demo.fns.values() if getattr(f.fn, "__name__", "") == "analyse").fn
     events = list(fn("   ", 3, 0, "Anthropic (Claude)", "", "", ""))
-    assert "❌" in events[-1][0]
+    assert any(isinstance(v, str) and "Analysis unavailable" in v for v in events[-1])
+    assert events[-1][2]["visible"] is False
 
 
 def test_space_requirements_cover_package_deps():

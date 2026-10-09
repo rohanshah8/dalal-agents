@@ -141,7 +141,8 @@ docker build -t dalal-agents . && docker run -p 7860:7860 dalal-agents   # Strea
 
 How the app works:
 
-- **Tabs:** Summary, Competitors & edge (scorecard heatmap), Price & trend vs peers and Nifty, Financials, Ownership, Management & plans (concall guidance with quotes), News, the full report with sources, and **Outlook & alternatives**.
+- **Five sections:** Stock Snapshot, Outlook, Better Alternatives, Competitor Comparison, and Investment Checklist. The snapshot labels its overall outlook as the 1-month forecast. Switch the alternatives period without running another analysis.
+- **Advanced Analysis:** collapsed by default; contains detailed financials, ownership, management, earnings calls, news, full reports, downloads and sources. See [the UX guide](docs/UX.md).
 - **Downloads:** HTML, Markdown and JSON.
 - **Caching:** key-free analyses are shared by visitors. With outlooks enabled, result keys refresh every 15 minutes by default; original provider retrieval dates remain visible. Without outlooks, the research cache lasts 6 hours.
 - **API keys:** an analysis that uses a visitor's key runs with their LLM for concall reading, news themes, competitor filtering, and the narrative. These research results bypass the shared result cache, and the key is redacted from the returned report.
@@ -149,7 +150,7 @@ How the app works:
 
 ## Multi-horizon outlooks and alternatives
 
-The **Outlook & alternatives** tab generates separate **1-week, 1-month and 3-month** research scenarios with direction, confidence, volatility-based price ranges, four cited reasons, risks and data-quality warnings. Up to three comparable stocks per horizon qualify only with both higher forecasted return and higher confidence, synchronized prices, adequate liquidity and fresh data.
+The **Outlook** section generates separate **1-week, 1-month and 3-month** research scenarios with direction, confidence, volatility-based price ranges, four cited reasons, risks and data-quality warnings. Up to three comparable stocks per horizon qualify only with both higher forecasted return and higher confidence, synchronized prices, adequate liquidity and fresh data.
 
 The engine is a **transparent heuristic baseline**, not a trained or calibrated predictor. Its confidence scores and illustrative ranges do not guarantee returns or measured accuracy. All numbers and rankings are computed in Python, without an LLM. Missing or excessively stale prices produce an explicit unavailable state.
 

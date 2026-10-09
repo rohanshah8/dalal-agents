@@ -4,7 +4,7 @@
   ("done", report_dict). It enforces the global concurrency cap and the caching / key policy:
   - no key  → quantitative pipeline, shared cache; outlooks add a versioned 15-minute refresh key;
   - key     → full pipeline with the visitor's LLM, never cached; the key is redacted from all output.
-* Markdown builders turn a report dict into tab content, so both UIs render identical text.
+* The shared dashboard and Markdown builders present the same research in both UIs.
 """
 from __future__ import annotations
 
