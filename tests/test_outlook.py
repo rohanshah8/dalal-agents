@@ -582,6 +582,7 @@ def test_native_gradio_launch_preserves_startup_hook_and_api(service, monkeypatc
         port = sock.getsockname()[1]
     monkeypatch.setenv("GRADIO_SERVER_NAME", "127.0.0.1")
     monkeypatch.setenv("GRADIO_SERVER_PORT", str(port))
+    monkeypatch.setenv("GRADIO_SSR_MODE", "true")  # Spaces enables its Node proxy by default.
     monkeypatch.setattr(api, "get_service", lambda: service)
     demo = gradio_app.build()
     monkeypatch.setattr(gradio_app, "demo", demo)
@@ -596,6 +597,7 @@ def test_native_gradio_launch_preserves_startup_hook_and_api(service, monkeypatc
     try:
         _, url, _ = gradio_app.launch(prevent_thread_lock=True)
         assert calls == [demo]
+        assert demo.ssr_mode is False
         with httpx.Client(base_url=url, timeout=30, trust_env=False) as client:
             assert client.get("/").status_code == 200
             assert "Outlook & alternatives" in client.get("/config").text

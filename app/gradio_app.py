@@ -230,6 +230,9 @@ def launch(*, prevent_thread_lock=False):
                        server_port=int(os.environ.get("GRADIO_SERVER_PORT", "7860")),
                        theme=gr.themes.Soft(primary_hue="blue"), css=CSS, footer_links=[],
                        app_kwargs={"routes": [Mount("/api", app=api_app(path_prefix=""))]},
+                       # The Spaces SSR proxy only forwards Gradio's own API
+                       # routes; serve custom REST routes from Python directly.
+                       ssr_mode=False,
                        prevent_thread_lock=prevent_thread_lock)
 
 
