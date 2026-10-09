@@ -12,6 +12,8 @@ The implementation reuses those components. `outlook/` contains the typed provid
 
 FastAPI is already used by Gradio and is now an explicit optional web dependency. The Gradio entry point mounts the original UI under the same server as `/api/*`. Streamlit uses the same service directly; `dalal serve` can run its companion REST server. SQLite uses the Python standard library, with a versioned migration packaged in the wheel. There is no order execution or brokerage integration.
 
+The public Space starts through Gradio's native `Blocks.launch`, with the REST application mounted at `/api`. This preserves the Spaces SDK startup hook required by the existing ZeroGPU hardware. Launching Uvicorn directly bypasses that hook and causes the Space to fail startup even when local API tests pass. The production launch path is covered by a local HTTP integration test.
+
 **Supported universe:** Indian NSE symbols and BSE symbols/codes, INR, adjusted daily completed-session prices. US exchanges and other currencies are not silently mapped to Indian equities. Market prices are delayed vendor data, not executable live quotes. A configured custom provider can implement the protocols, but expanding the public universe requires explicit exchange, currency and model validation.
 
 ## Run

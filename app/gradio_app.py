@@ -219,10 +219,18 @@ def create_app():
                                css=CSS, footer_links=[])
 
 
-def launch():
-    import uvicorn
-    uvicorn.run(create_app(), host=os.environ.get("GRADIO_SERVER_NAME", "0.0.0.0"),
-                port=int(os.environ.get("GRADIO_SERVER_PORT", "7860")))
+def launch(*, prevent_thread_lock=False):
+    from starlette.routing import Mount
+
+    from dalal_agents.outlook.api import create_app as api_app
+
+    # Spaces registers its ZeroGPU startup report on Blocks.launch. Starting
+    # Uvicorn directly skips that hook and makes the Space fail its health check.
+    return demo.launch(server_name=os.environ.get("GRADIO_SERVER_NAME", "0.0.0.0"),
+                       server_port=int(os.environ.get("GRADIO_SERVER_PORT", "7860")),
+                       theme=gr.themes.Soft(primary_hue="blue"), css=CSS, footer_links=[],
+                       app_kwargs={"routes": [Mount("/api", app=api_app(path_prefix=""))]},
+                       prevent_thread_lock=prevent_thread_lock)
 
 
 if __name__ == "__main__":

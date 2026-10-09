@@ -40,8 +40,11 @@ class RateLimiter:
             return allowed
 
 
-def create_app(service: OutlookService | None = None) -> FastAPI:
-    app = FastAPI(title="Dalal Agents Outlook API", version="1.0", docs_url="/api/docs", openapi_url="/api/openapi.json")
+def create_app(service: OutlookService | None = None, *, path_prefix: str = "/api") -> FastAPI:
+    """Use an empty prefix when this app is mounted under Gradio's /api route."""
+    app = FastAPI(title="Dalal Agents Outlook API", version="1.0",
+                  docs_url=f"{path_prefix}/docs", openapi_url=f"{path_prefix}/openapi.json")
+    stocks_path = f"{path_prefix}/stocks"
     config = service.config if service else ForecastConfig.load(Settings().outlook_config_file)
     limiter = RateLimiter(config.requests_per_minute)
 
@@ -62,7 +65,8 @@ def create_app(service: OutlookService | None = None) -> FastAPI:
     @app.middleware("http")
     async def tracing(request: Request, call_next):
         request.state.trace_id = uuid.uuid4().hex
-        if request.url.path.startswith("/api/stocks"):
+        route_path = request.url.path.removeprefix(request.scope.get("root_path", ""))
+        if route_path.startswith(stocks_path):
             if not limiter.allow(request.client.host if request.client else "unknown"):
                 return error(request, "RATE_LIMITED", "Too many requests. Please retry shortly.", 429, {"Retry-After": "60"})
             content_length = request.headers.get("content-length", "0")
@@ -92,22 +96,22 @@ def create_app(service: OutlookService | None = None) -> FastAPI:
     async def service_error(request, exc):
         return error(request, exc.code, str(exc), exc.status, {"Retry-After": "10"} if exc.status in (429, 503, 504) else None)
 
-    @app.post("/api/stocks/analyze", response_model=StockOutlook)
+    @app.post(f"{stocks_path}/analyze", response_model=StockOutlook)
     def analyze(request: AnalysisRequest):
         return active_service().analyze(request)
 
-    @app.get("/api/stocks/{symbol}/outlook", response_model=StockOutlook)
+    @app.get(f"{stocks_path}/{{symbol}}/outlook", response_model=StockOutlook)
     def outlook(symbol: str, exchange: Literal["NSE", "BSE"] | None = None,
                 include_alternatives: bool = True, alternative_limit: int = Query(3, ge=0, le=3)):
         return active_service().analyze(validated_request(symbol=symbol, exchange=exchange,
                                                         include_alternatives=include_alternatives, alternative_limit=alternative_limit))
 
-    @app.get("/api/stocks/{symbol}/outlook/history", response_model=list[StockOutlook])
+    @app.get(f"{stocks_path}/{{symbol}}/outlook/history", response_model=list[StockOutlook])
     def history(symbol: str, exchange: Literal["NSE", "BSE"] | None = None, limit: int = Query(20, ge=1, le=100)):
         request = validated_request(symbol=symbol, exchange=exchange)
         return active_service().store.history(request.symbol, request.exchange, limit)
 
-    @app.get("/api/stocks/{symbol}/alternatives")
+    @app.get(f"{stocks_path}/{{symbol}}/alternatives")
     def alternatives(symbol: str, horizon: Horizon = "ONE_MONTH", exchange: Literal["NSE", "BSE"] | None = None):
         from .models import EMPTY_ALTERNATIVES
         result = active_service().analyze(validated_request(symbol=symbol, exchange=exchange))
@@ -116,7 +120,7 @@ def create_app(service: OutlookService | None = None) -> FastAPI:
                 "alternatives": selected, "message": None if selected else EMPTY_ALTERNATIVES,
                 "disclaimer": result.disclaimer}
 
-    @app.get("/api/health")
+    @app.get(f"{path_prefix}/health")
     def health():
         return {"status": "ok"}
 

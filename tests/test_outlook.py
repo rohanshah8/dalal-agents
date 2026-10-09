@@ -563,6 +563,59 @@ def test_cross_process_style_lease_and_snapshot_history(service):
     other.release("test-key", "owner-b")
 
 
+def test_native_gradio_launch_preserves_startup_hook_and_api(service, monkeypatch):
+    """Exercise the production launch path, including the hook used by Spaces."""
+    import socket
+    import sys
+    from pathlib import Path
+
+    import gradio as gr
+    import httpx
+
+    from dalal_agents.outlook import api
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "app"))
+    import gradio_app
+
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    monkeypatch.setenv("GRADIO_SERVER_NAME", "127.0.0.1")
+    monkeypatch.setenv("GRADIO_SERVER_PORT", str(port))
+    monkeypatch.setattr(api, "get_service", lambda: service)
+    demo = gradio_app.build()
+    monkeypatch.setattr(gradio_app, "demo", demo)
+    launch = gr.Blocks.launch
+    calls = []
+
+    def startup_hook(self, *args, **kwargs):
+        calls.append(self)
+        return launch(self, *args, **kwargs)
+
+    monkeypatch.setattr(gr.Blocks, "launch", startup_hook)
+    try:
+        _, url, _ = gradio_app.launch(prevent_thread_lock=True)
+        assert calls == [demo]
+        with httpx.Client(base_url=url, timeout=30, trust_env=False) as client:
+            assert client.get("/").status_code == 200
+            assert "Outlook & alternatives" in client.get("/config").text
+            assert client.get("/api/health").json() == {"status": "ok"}
+            assert "/api/openapi.json" in client.get("/api/docs").text
+            schema = client.get("/api/openapi.json").json()
+            assert "/stocks/analyze" in schema["paths"]
+            assert {"url": "/api"} in schema["servers"]
+            response = client.post("/api/stocks/analyze", json={"symbol": "TCS", "include_alternatives": False})
+            assert response.status_code == 200
+            assert len(response.json()["outlooks"]) == 3
+            assert response.headers["X-Request-ID"]
+            invalid = client.post("/api/stocks/analyze", json={"symbol": "../bad"})
+            assert invalid.status_code == 422
+            assert invalid.json()["error"]["code"] == "INVALID_REQUEST"
+            assert client.post("/api/stocks/analyze", content=b"x" * 5000).status_code == 413
+    finally:
+        demo.close()
+
+
 def test_streamlit_failure_removes_previous_forecast(monkeypatch, tmp_path):
     import sys
     from pathlib import Path
