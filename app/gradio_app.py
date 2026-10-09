@@ -39,6 +39,14 @@ LANDING = f"""
 (quantitative) or 1–2 min (with AI narrative). Popular stocks are cached.
 """
 
+THEME = gr.themes.Soft(primary_hue="blue", font=["Arial", "Helvetica", "sans-serif"]).set(
+    body_text_weight="400",
+    block_label_text_weight="400",
+    block_title_text_weight="400",
+    button_large_text_weight="400",
+    button_medium_text_weight="400",
+)
+
 CSS = """
 .kpi table { width: 100%; text-align: center; }
 .kpi th { font-weight: 500; opacity: .75; }
@@ -215,7 +223,7 @@ demo = build()
 
 def create_app():
     from dalal_agents.outlook.api import create_app as api_app
-    return gr.mount_gradio_app(api_app(), demo, path="/", theme=gr.themes.Soft(primary_hue="blue"),
+    return gr.mount_gradio_app(api_app(), demo, path="/", theme=THEME,
                                css=CSS, footer_links=[])
 
 
@@ -228,7 +236,7 @@ def launch(*, prevent_thread_lock=False):
     # Uvicorn directly skips that hook and makes the Space fail its health check.
     return demo.launch(server_name=os.environ.get("GRADIO_SERVER_NAME", "0.0.0.0"),
                        server_port=int(os.environ.get("GRADIO_SERVER_PORT", "7860")),
-                       theme=gr.themes.Soft(primary_hue="blue"), css=CSS, footer_links=[],
+                       theme=THEME, css=CSS, footer_links=[],
                        app_kwargs={"routes": [Mount("/api", app=api_app(path_prefix=""))]},
                        # The Spaces SSR proxy only forwards Gradio's own API
                        # routes; serve custom REST routes from Python directly.

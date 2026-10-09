@@ -14,7 +14,7 @@ _LAYOUT = dict(
     margin=dict(l=8, r=8, t=36, b=8),
     hovermode="x unified",
     legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
-    font=dict(size=12),
+    font=dict(family="Arial, Helvetica, sans-serif", size=12),
 )
 
 
