@@ -135,6 +135,27 @@ def research(query: str, settings: Settings | None = None, progress=None) -> Rep
     else:
         report.warnings.append("No competitors could be analysed.")
 
+    if settings.outlook_enabled:
+        say("Computing 1-week, 1-month and 3-month outlooks and screening alternatives…")
+        try:
+            from .models import Source
+            from .outlook.models import AnalysisRequest
+            from .outlook.service import get_service
+            exchange = "BSE" if symbol.isdigit() or (ys and ys.endswith(".BO")) else "NSE"
+            report.outlook = get_service(settings).analyze(AnalysisRequest(symbol=symbol, exchange=exchange), context=ctx)
+            for outlook in report.outlook.outlooks:
+                if outlook.price_range is None:
+                    continue
+                src = Source(provider="dalal-agents heuristic outlook", title=f"{outlook.horizon}: scenario, not a price target")
+                for key, value, unit in (("lower", outlook.price_range.lower, "₹"), ("median", outlook.price_range.median, "₹"),
+                                         ("upper", outlook.price_range.upper, "₹"), ("confidence", outlook.confidence_score, ""),
+                                         ("expected_return", outlook.expected_return_percent, "%")):
+                    ctx.facts.add(f"{symbol}.outlook_{outlook.horizon}_{key}", f"{outlook.horizon} heuristic {key}",
+                                  value, src, unit, period=report.outlook.analysis_timestamp.isoformat(), company=symbol)
+        except Exception as error:
+            log.warning("Outlook unavailable error_type=%s", type(error).__name__)
+            report.warnings.append("Multi-horizon outlook unavailable; retry the outlook endpoint or a fresh analysis.")
+
     report.charts = {"prices": _price_series(ctx, [symbol] + [p.symbol for p in peers]),
                      "tables": _tables(data)}
     report.facts = list(ctx.facts.facts.values())

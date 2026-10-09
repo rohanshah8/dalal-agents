@@ -11,7 +11,7 @@ from rich.table import Table
 
 from .config import Settings
 
-app = typer.Typer(add_completion=False, help="Dalal Agents — AI equity research for Indian stocks (NSE/BSE).",
+app = typer.Typer(add_completion=False, help="Dalal Agents — open-source finance research for Indian stocks (NSE/BSE).",
                   no_args_is_help=True)
 console = Console()
 
@@ -61,6 +61,42 @@ def analyze(
     _print_summary(report)
     for k, p in paths.items():
         console.print(f"[green]✓[/green] {k.upper()} report → {p}")
+
+
+@app.command()
+def outlook(
+    symbol: str = typer.Argument(..., help="NSE ticker or six-digit BSE code"),
+    exchange: Optional[str] = typer.Option(None, help="NSE or BSE"),
+    alternatives: bool = typer.Option(True, help="Screen comparable alternatives"),
+    out: Path = typer.Option(Path("reports"), help="Directory for JSON and Markdown"),
+    offline: bool = typer.Option(False, help="Use cached provider data only"),
+):
+    """Generate 5, 21 and 63-session heuristic research outlooks without an LLM."""
+    from .outlook.models import DISCLAIMER
+    from .outlook.render import render_markdown
+    from .outlook.service import OutlookError, analyze_outlook
+    try:
+        result = analyze_outlook(symbol, exchange, alternatives, settings=Settings(llm_provider="none", offline=offline))
+    except (ValueError, OutlookError) as error:
+        console.print(f"[red]{error}[/red]")
+        raise typer.Exit(1) from None
+    out.mkdir(parents=True, exist_ok=True)
+    stem = f"{result.symbol}_outlook_{result.analysis_id}"
+    (out / f"{stem}.json").write_text(result.model_dump_json(indent=2), encoding="utf-8")
+    (out / f"{stem}.md").write_text(render_markdown(result), encoding="utf-8")
+    for horizon in result.outlooks:
+        console.print(f"{horizon.horizon}: {horizon.movement or 'UNAVAILABLE'} · confidence {horizon.confidence_score:.1f}/100")
+    console.print(DISCLAIMER)
+    console.print(f"Saved outlook and audit ID {result.analysis_id} to {out}")
+
+
+@app.command()
+def serve(host: str = "127.0.0.1", port: int = 8000):
+    """Serve the optional REST API (install dalal-agents[web])."""
+    import uvicorn
+
+    from .outlook.api import create_app
+    uvicorn.run(create_app(), host=host, port=port)
 
 
 @app.command()

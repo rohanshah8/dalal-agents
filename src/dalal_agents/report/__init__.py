@@ -145,6 +145,10 @@ def render_markdown(r: Report) -> str:
             L.append(text)
             L.append("")
 
+    if r.outlook is not None:
+        from ..outlook.render import render_markdown as render_outlook
+        L.append(render_outlook(r.outlook))
+        L.append("")
     L.append("## Sources & methodology")
     L.append("")
     L.append(_verification(r))

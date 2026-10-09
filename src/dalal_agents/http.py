@@ -12,6 +12,7 @@ import json
 import logging
 import threading
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlencode, urlparse
 
@@ -46,6 +47,30 @@ class HttpClient:
         self._lock = threading.Lock()
 
     # ------------------------------------------------------------------ cache
+    def retrieved_at(self, url: str, params: dict | None = None) -> datetime:
+        """Original retrieval time of a cached response, never its most recent read time."""
+        try:
+            ts = json.loads(self._key(url, params).with_suffix(".json").read_text())["ts"]
+            return datetime.fromtimestamp(ts, timezone.utc)
+        except (OSError, ValueError, KeyError, TypeError):
+            return datetime.now(timezone.utc)
+
+    def assert_robots_allowed(self, url: str) -> None:
+        """Check automated page access; fail closed on an unavailable robots policy."""
+        from urllib.robotparser import RobotFileParser
+
+        origin = urlparse(url)
+        robots_url = f"{origin.scheme}://{origin.netloc}/robots.txt"
+        parser = RobotFileParser()
+        try:
+            parser.parse(self.get_text(robots_url, ttl_s=24 * 3600, timeout=10, retries=2).splitlines())
+        except requests.HTTPError as error:
+            if error.response is not None and error.response.status_code == 404:
+                return
+            raise PermissionError("Unable to verify source automated-access policy") from None
+        if not parser.can_fetch(self.settings.user_agent, url) or not parser.can_fetch("dalal-agents", url):
+            raise PermissionError("Source robots policy disallows this path")
+
     def _key(self, url: str, params: dict | None) -> Path:
         full = url + ("?" + urlencode(sorted(params.items())) if params else "")
         return self.cache_dir / hashlib.sha1(full.encode()).hexdigest()

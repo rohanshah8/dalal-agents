@@ -1,8 +1,10 @@
 # Dalal Agents — Design Document
 
 > *Dalal Street, but every analyst is an agent.*
-> Open-source, multi-agent equity research for Indian listed companies (NSE/BSE).
+> An open-source finance research agent for Indian listed companies (NSE/BSE).
 > Status: v0.1 design · Author: founding team · Date: 2026-10-01
+
+Implementation update: the multi-horizon heuristic outlook, alternative screening, REST API and SQLite audit extension is documented in [OUTLOOK.md](OUTLOOK.md). That document specifies the current forecast contract, source limitations and operating requirements.
 
 ---
 
@@ -69,7 +71,7 @@ The output is a Markdown, HTML and JSON report with these parts:
 - CLI (`dalal`) and Python API; offline test suite with fixtures
 
 **Roadmap**
-- v0.2: Web UI (shipped: Gradio app on a free Hugging Face Space, Streamlit for self-hosting; see `app/`), multi-quarter "promise vs. delivery" tracker for concalls, annual-report RAG with embeddings
+- v0.2: Web UI (shipped: browser app and local Gradio / Streamlit interfaces; see `app/`), multi-quarter "promise vs. delivery" tracker for concalls, annual-report RAG with embeddings
 - v0.3: watchlists with quarterly diff alerts, sector reports, global peers (e.g. TCS vs. Accenture)
 - v0.4: eval leaderboard across LLMs, plugin data providers (paid APIs)
 

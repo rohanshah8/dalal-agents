@@ -18,23 +18,30 @@ import core  # noqa: E402
 
 from dalal_agents import __version__  # noqa: E402
 from dalal_agents.models import Report  # noqa: E402
+from dalal_agents.outlook.render import loading_html  # noqa: E402
+from dalal_agents.outlook.render import render_html as render_outlook
 from dalal_agents.report import DISCLAIMER, render_html, render_markdown  # noqa: E402
 
 EXAMPLES, DEFAULT_MODELS, REPO = core.EXAMPLES, core.DEFAULT_MODELS, core.REPO
 
-st.set_page_config(page_title="Dalal Agents · AI equity research for Indian stocks", page_icon="🐂",
+st.set_page_config(page_title="Dalal Agents · Open-source finance research", page_icon="🐂",
                    layout="wide", menu_items={"About": f"Dalal Agents v{__version__} · {REPO}"})
 
 
 def run_analysis(query: str, n_peers: int, n_concalls: int, llm: dict | None) -> dict:
-    with st.status(f"Analysing {query}…", expanded=True) as status:
-        for kind, payload in core.analyze_stream(query, n_peers, n_concalls, llm):
-            if kind == "done":
-                status.update(state="complete", expanded=False)
-                return payload
-            status.write(core.fmt_progress(payload))
-            if payload.startswith(("Stage", "Found", "Done", "The server is busy")):
-                status.update(label=payload.strip()[:90])
+    skeleton = st.empty()
+    skeleton.html(loading_html())
+    try:
+        with st.status(f"Analysing {query}…", expanded=True) as status:
+            for kind, payload in core.analyze_stream(query, n_peers, n_concalls, llm):
+                if kind == "done":
+                    status.update(state="complete", expanded=False)
+                    return payload
+                status.write(core.fmt_progress(payload))
+                if payload.startswith(("Stage", "Found", "Done", "The server is busy")):
+                    status.update(label=payload.strip()[:90])
+    finally:
+        skeleton.empty()
     raise RuntimeError("analysis ended without a result")
 
 
@@ -134,7 +141,7 @@ def show_report(r: dict):
     d3.download_button("⬇️ JSON", json.dumps(r, indent=2, ensure_ascii=False, default=str),
                        file_name=f"{stem}.json", mime="application/json")
     tabs = st.tabs(["📋 Summary", "🥊 Competitors & edge", "📈 Price & trend", "📊 Financials", "👥 Ownership",
-                    "🎙️ Management & plans", "📰 News", "📄 Full report & sources"])
+                    "🎙️ Management & plans", "📰 News", "📄 Full report & sources", "🔭 Outlook & alternatives"])
     with tabs[0]:
         tab_summary(r, sec)
     with tabs[1]:
@@ -151,13 +158,15 @@ def show_report(r: dict):
         tab_news(r, sec)
     with tabs[7]:
         tab_full(r, md)
+    with tabs[8]:
+        st.html(render_outlook(r.get("outlook")))
 
 
 # ------------------------------------------------------------------ page
 def sidebar() -> tuple[str | None, int, int, dict | None]:
     sb = st.sidebar
     sb.markdown("# 🐂 Dalal Agents")
-    sb.caption("AI research analysts for Indian stocks · open source")
+    sb.caption("Open-source finance research for Indian stocks")
     query = sb.text_input("Company", key="query", placeholder="TCS, 500325, or 'hdfc bank'",
                           help="NSE symbol, BSE code or company name")
     cols = sb.columns(3)
@@ -207,6 +216,7 @@ def main():
             st.warning("An analysis is already running in this session.")
         else:
             st.session_state["running"] = True
+            st.session_state.pop("report", None)
             try:
                 st.session_state["report"] = run_analysis(chosen, n_peers, n_concalls, llm)
                 st.session_state.pop("error", None)

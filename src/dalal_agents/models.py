@@ -6,6 +6,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from .outlook.models import StockOutlook
+
 
 def utcnow() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -151,3 +153,4 @@ class Report(BaseModel):
     excerpts: list[Excerpt] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     charts: dict[str, Any] = Field(default_factory=dict)  # compact series for UIs (weekly closes, …)
+    outlook: StockOutlook | None = None

@@ -49,6 +49,7 @@ def parse_news(xml: bytes | str, days: int = 60, limit: int = 40) -> list[dict]:
         if dt and dt < cutoff:
             continue
         out.append({"title": title, "url": e.get("link"), "publisher": publisher,
+                    "published_at": dt.isoformat() if dt else None,
                     "date": dt.date().isoformat() if dt else None})
     out.sort(key=lambda x: x["date"] or "", reverse=True)
     return out[:limit]

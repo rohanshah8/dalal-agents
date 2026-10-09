@@ -36,6 +36,10 @@ class ConcallAgent(Agent):
     description = "Earnings-call transcripts: guidance, plans, risks, tone shift"
 
     def execute(self) -> None:
+        if self.ctx.settings.n_concalls == 0:
+            self.finding.data = {"calls": []}
+            self.finding.summary = "Transcript analysis disabled"
+            return
         d = self.data()
         calls = [x for x in d.documents if x.kind == "concall"]
         if not calls:

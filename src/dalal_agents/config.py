@@ -44,6 +44,10 @@ class Settings:
     no_cache: bool = False
     max_workers: int = 6
     strict: bool = False
+    outlook_enabled: bool = field(default_factory=lambda: _env("DALAL_OUTLOOK_ENABLED", "1") == "1")
+    outlook_config_file: Path | None = field(default_factory=lambda: Path(v) if (v := _env("DALAL_OUTLOOK_CONFIG")) else None)
+    outlook_macro_file: Path | None = field(default_factory=lambda: Path(v) if (v := _env("DALAL_MACRO_FILE")) else None)
+    outlook_db: Path | None = field(default_factory=lambda: Path(v) if (v := _env("DALAL_OUTLOOK_DB")) else None)
     user_agent: str = (
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/124.0 Safari/537.36 dalal-agents/0.1 (+https://github.com/rohanshah8/dalal-agents)"

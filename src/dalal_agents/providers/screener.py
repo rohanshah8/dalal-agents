@@ -191,6 +191,7 @@ class ScreenerProvider:
 
     def search(self, query: str) -> list[dict]:
         import json
+        self.http.assert_robots_allowed(f"{BASE}/api/company/search/")
         txt = self.http.get_text(f"{BASE}/api/company/search/", params={"q": query, "v": "3"},
                                  ttl_s=7 * 86400)
         return json.loads(txt)
@@ -202,6 +203,7 @@ class ScreenerProvider:
         for cons in order:
             url = f"{BASE}/company/{symbol}/" + ("consolidated/" if cons else "")
             try:
+                self.http.assert_robots_allowed(url)
                 html = self.http.get_text(url)
             except Exception as e:  # 404 etc.
                 last_err = e
@@ -216,6 +218,7 @@ class ScreenerProvider:
             if cons and data.profile.is_financial:
                 try:
                     url_sa = f"{BASE}/company/{symbol}/"
+                    self.http.assert_robots_allowed(url_sa)
                     sa = parse_company_page(self.http.get_text(url_sa), symbol, url_sa, False)
                     if sa.profit_loss is not None and sa.profit_loss.rows:
                         return sa
@@ -228,6 +231,7 @@ class ScreenerProvider:
         wid = data.profile.screener_warehouse_id
         if not wid:
             return []
+        self.http.assert_robots_allowed(f"{BASE}/api/company/{wid}/peers/")
         html = self.http.get_text(f"{BASE}/api/company/{wid}/peers/",
                                   headers={"Referer": data.profile.screener_url or BASE})
         return parse_peers(html)
@@ -239,6 +243,7 @@ class ScreenerProvider:
         out, seen = [], set()
         for kind in ("recent",):  # "important" requires login
             try:
+                self.http.assert_robots_allowed(f"{BASE}/announcements/{kind}/{cid}/")
                 docs = parse_announcements(self.http.get_text(f"{BASE}/announcements/{kind}/{cid}/"))
             except Exception:
                 continue

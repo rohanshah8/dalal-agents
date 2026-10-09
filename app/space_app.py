@@ -18,7 +18,6 @@ try:  # ZeroGPU hardware refuses to start without at least one @spaces.GPU funct
 except ImportError:  # CPU hardware or local run
     pass
 
-import gradio as gr  # noqa: E402
-from gradio_app import CSS, demo  # noqa: E402
+from gradio_app import launch  # noqa: E402
 
-demo.launch(theme=gr.themes.Soft(primary_hue="blue"), css=CSS, footer_links=[])
+launch()

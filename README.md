@@ -1,11 +1,13 @@
 # 🐂 Dalal Agents
 
-**Open-source multi-agent equity research for Indian stocks (NSE/BSE).**
-One command gives you a research report on any listed Indian company and its closest competitors. Every number in it is cited.
+**An open-source finance research agent for Indian stocks (NSE/BSE).**
+Dalal Agents brings financial statements, price trends, ownership, earnings calls, news, and competitor comparisons into one research report. Specialist agents gather the evidence, Python computes the financial metrics, and an optional LLM writes the analysis with citations.
 
-### 👉 [Try it in your browser](https://huggingface.co/spaces/srg6698/dalal-agents) — no install, no sign-up
+[**Try the live app**](https://huggingface.co/spaces/srg6698/dalal-agents) · [Explore example reports](#example-reports) · [Run locally](#install) · [Contribute](CONTRIBUTING.md)
 
-The web app runs without an API key: you get every number, chart and the competitor scorecard. Paste your own Anthropic or OpenAI key in the sidebar to add the AI analyst narrative. The key is used only for that run and is never stored.
+Open the live app, enter a company name or ticker, and select **Analyse**. Financial metrics, charts, a competitor scorecard, and a template-written narrative work without an API key. Add your own Anthropic or OpenAI-compatible API key for AI-assisted transcript analysis and report writing.
+
+Built for investors researching companies, finance students exploring the calculations, and developers extending an open-source research workflow. Use the browser app, command-line interface, or Python API.
 
 ```bash
 dalal analyze TCS
@@ -14,7 +16,7 @@ dalal analyze 500325          # BSE code works too
 ```
 
 [![CI](https://github.com/rohanshah8/dalal-agents/actions/workflows/ci.yml/badge.svg)](https://github.com/rohanshah8/dalal-agents/actions)
-[![Open in Spaces](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Open%20app-yellow)](https://huggingface.co/spaces/srg6698/dalal-agents)
+[![Live app](https://img.shields.io/badge/Live_app-Try_Dalal_Agents-blue)](https://huggingface.co/spaces/srg6698/dalal-agents)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue) ![License](https://img.shields.io/badge/license-MIT-green)
 
 > ⚠️ **Not investment advice.** Dalal Agents is an educational research tool. It never issues buy/sell/hold calls or target prices, and the authors are not SEBI-registered Research Analysts. See the [disclaimer](#disclaimer).
@@ -23,23 +25,25 @@ dalal analyze 500325          # BSE code works too
 
 ## What you get
 
-Each run has 11 agents gather the data and do the analysis that would take a human analyst days:
+The research pipeline combines specialist agents, deterministic analytics, and optional AI synthesis:
 
-| Agent | What it does | Sources |
+| Research component | What it does | Sources |
 |---|---|---|
 | **Market** | Trend (SMA50/200), momentum (RSI, MACD), returns vs NIFTY 50, β, volatility, drawdowns | Yahoo Finance |
 | **Fundamentals** | 12 years of P&L, balance sheet and cash flow → CAGR, margins, ROE/ROCE, DuPont, cash conversion, working-capital days, Piotroski F-score | Screener.in |
 | **Valuation** | P/E, P/B, PEG, and a **reverse DCF**: what growth is the market price already pricing in? | Computed |
 | **Ownership** | Promoter / FII / DII / retail trends and shareholder-count growth | Exchange filings via Screener |
-| **Filings** | Latest exchange announcements, annual reports, credit ratings | BSE/NSE |
+| **Filings** | Latest exchange announcements and links to annual reports and credit ratings | BSE/NSE via Screener |
 | **Concall** | Reads the latest earnings-call transcripts (PDF) and extracts guidance, capex, initiatives, risks and analyst concerns, each with a **verbatim quote checked against the transcript**; tracks management-tone shifts | BSE filings |
 | **News & Web** | ~60 days of headlines with sentiment and event tags, plus open-web search for capex, expansion, order book and strategy | Google News, Bing / Tavily |
 | **Competitor discovery** | Same-industry peers ranked by size similarity, with an optional LLM check of business overlap | Screener peer data |
 | **Peer analysis** | Runs the same maths on each competitor | — |
-| **Edge** | A percentile **scorecard** across 7 dimensions that shows where the company wins and where it lags vs peers | Computed |
-| **Writer + Verifier** | The LLM writes the narrative using *only* the cited facts. A deterministic verifier then checks every number against its source | Claude / OpenAI / Ollama |
+| **Edge** | A percentile **scorecard** across 7 dimensions for nonfinancial companies, or 6 for lenders | Computed |
+| **Writer + Verifier** | The LLM is prompted to write from cited facts and excerpts; a deterministic verifier checks numeric matches, citation IDs, and recommendation language | Claude / OpenAI / Ollama |
 
-**Example reports** (real runs, 1 Oct 2026): [TCS vs Infosys, HCLTech, Wipro, Tech Mahindra](examples/TCS.md) · [HDFC Bank vs ICICI, Kotak, Axis, IDBI](examples/HDFCBANK.md) · [Asian Paints vs Berger, Kansai Nerolac, JSW Dulux, Indigo](examples/ASIANPAINT.md)
+## Example reports
+
+Saved reports from 1 Oct 2026: [TCS vs Infosys, HCLTech, Wipro, Tech Mahindra](examples/TCS.md) · [HDFC Bank vs ICICI, Kotak, Axis, IDBI](examples/HDFCBANK.md) · [Asian Paints vs Berger, Kansai Nerolac, JSW Dulux, Indigo](examples/ASIANPAINT.md)
 
 ```
            Edge scorecard (percentile vs peers)
@@ -58,7 +62,7 @@ Each run has 11 agents gather the data and do the analysis that would take a hum
 Verifier: 150/151 sentences passed · numeric grounding 98.9%
 ```
 
-## Why it can be trusted
+## How research is grounded
 
 LLMs are good at reasoning but bad at arithmetic, and they hallucinate numbers. Dalal Agents is built around that:
 
@@ -66,10 +70,14 @@ LLMs are good at reasoning but bad at arithmetic, and they hallucinate numbers. 
 2. **Every fact gets an ID.** Agents register each data point as `[F12] TCS · ROCE (Mar 2026): 59.9% ← screener.in` and each text excerpt as `[E7] …`. The writer sees only these facts.
 3. **Citations are mandatory.** Every sentence with a number must cite a fact.
 4. **Deterministic verifier.** It extracts every number from the narrative and checks that it matches one of the cited facts (±1.5%). It also flags unknown citations, uncited numbers and recommendation language ("buy", "target price", "undervalued"…). `--strict` removes failing sentences; by default they are marked ⚠.
-5. **Grounded transcript extraction.** Concall items whose "verbatim" quote is not actually in the transcript are dropped.
+5. **Transcript quote checks.** Concall extraction checks supporting quotes against transcript text and drops items without a matching quote.
 6. **It works without an LLM.** With no API key you still get a full quantitative report with a rule-based narrative that follows the same citation contract.
 
+The verifier checks numeric consistency; it does not establish that every claim has the correct meaning, company, period, or context. The source facts and excerpts are included for review.
+
 ## Install
+
+For the CLI, Python API, or local web interfaces, use Python 3.10 or newer:
 
 ```bash
 git clone https://github.com/rohanshah8/dalal-agents.git
@@ -118,9 +126,11 @@ print(report.findings["fundamentals"].data["roce"])
 open("tcs.md", "w").write(render_markdown(report))
 ```
 
-## Web app
+## Browser app and local interfaces
 
-The public app is a **Gradio** UI hosted on a free Hugging Face Space. A Streamlit UI with the same features is included for local or self-hosted use. Both share `app/core.py`, which holds the pipeline wrapper, caching and API-key policy.
+Use the [live app](https://huggingface.co/spaces/srg6698/dalal-agents) to research a company directly in your browser. The repository also includes **Gradio** and **Streamlit** interfaces for running the same research workflow locally.
+
+To run a local interface:
 
 ```bash
 pip install -e ".[web]"
@@ -130,17 +140,25 @@ docker build -t dalal-agents . && docker run -p 7860:7860 dalal-agents   # Strea
 ```
 
 How the app works:
-- **Tabs:** Summary, Competitors & edge (scorecard heatmap), Price & trend vs peers and Nifty, Financials, Ownership, Management & plans (concall guidance with quotes), News, and the full report with sources.
+
+- **Tabs:** Summary, Competitors & edge (scorecard heatmap), Price & trend vs peers and Nifty, Financials, Ownership, Management & plans (concall guidance with quotes), News, the full report with sources, and **Outlook & alternatives**.
 - **Downloads:** HTML, Markdown and JSON.
-- **Caching:** key-free analyses are cached for 6 hours and shared by all visitors, so popular stocks load instantly.
-- **API keys:** an analysis that uses a visitor's key runs in full with their LLM (concall reading, news themes, competitor filtering, narrative). It is never cached, and the key is never stored, logged or echoed back.
+- **Caching:** key-free analyses are shared by visitors. With outlooks enabled, result keys refresh every 15 minutes by default; original provider retrieval dates remain visible. Without outlooks, the research cache lasts 6 hours.
+- **API keys:** an analysis that uses a visitor's key runs with their LLM for concall reading, news themes, competitor filtering, and the narrative. These research results bypass the shared result cache, and the key is redacted from the returned report.
 - **Load limits:** at most 2 analyses run at once (`DALAL_MAX_CONCURRENT`). Other visitors see their place in Gradio's queue.
 
-### Deploy your own Space (free)
-1. Create a Hugging Face [access token](https://huggingface.co/settings/tokens) with **write** permission.
-2. [Create a Space](https://huggingface.co/new-space): SDK **Gradio**, template **Blank**, hardware **CPU basic (free)**.
-3. In this GitHub repo, open **Settings → Secrets and variables → Actions**. Add the secret `HF_TOKEN`. If your Space isn't `srg6698/dalal-agents`, also add the variable `HF_SPACE=<user>/<space>`.
-4. Push to `main`, or run **Deploy to Hugging Face Space** from the Actions tab. The workflow assembles the Space with `scripts/build_space.sh`, which you can run locally to inspect exactly what gets deployed.
+## Multi-horizon outlooks and alternatives
+
+The **Outlook & alternatives** tab generates separate **1-week, 1-month and 3-month** research scenarios with direction, confidence, volatility-based price ranges, four cited reasons, risks and data-quality warnings. Up to three comparable stocks per horizon qualify only with both higher forecasted return and higher confidence, synchronized prices, adequate liquidity and fresh data.
+
+The engine is a **transparent heuristic baseline**, not a trained or calibrated predictor. Its confidence scores and illustrative ranges do not guarantee returns or measured accuracy. All numbers and rankings are computed in Python, without an LLM. Missing or excessively stale prices produce an explicit unavailable state.
+
+```bash
+dalal outlook TCS                         # standalone outlook → JSON and Markdown
+dalal serve --port 8000                   # REST API; docs at /api/docs
+```
+
+The Gradio server also exposes `POST /api/stocks/analyze`, outlook history and alternatives endpoints. Observed feature snapshots and screening decisions are audited in SQLite. See [the methodology, API and configuration guide](docs/OUTLOOK.md), including supported NSE/BSE symbols, source limitations and persistent storage settings.
 
 ## Report contents
 
@@ -214,14 +232,19 @@ Please respect each source's terms of use. For heavy or commercial use, plug in 
 
 ```bash
 pip install -e ".[dev,web]"
-pytest -q            # 52 offline tests: parsers on real HTML fixtures, finance maths, verifier, end-to-end pipeline
+pytest -q            # offline parser, analytics, verifier, pipeline, and web-interface tests
+ruff check src tests app
 ```
 
 Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Good first issues: more sector playbooks (insurance, real estate), annual-report RAG, and a quarterly "promise vs delivery" tracker for concall guidance.
 
 ## Roadmap
 
-- [x] Web UI (Gradio on Hugging Face Spaces; Streamlit for self-hosting)
+- [x] Finance research pipeline with financials, prices, ownership, transcripts, and news
+- [x] Competitor discovery and relative scorecards
+- [x] Optional AI narrative with citation and numeric checks
+- [x] CLI, Python API, and Markdown / HTML / JSON reports
+- [x] Browser app and local Gradio / Streamlit interfaces
 - [ ] Track concall guidance against actual delivery across 8 quarters
 - [ ] Annual-report RAG (segment data, related-party transactions, contingent liabilities)
 - [ ] Global peers (e.g. TCS vs Accenture, Cognizant)

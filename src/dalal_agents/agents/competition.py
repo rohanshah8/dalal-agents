@@ -91,7 +91,7 @@ class PeerSnapshotAgent(Agent):
             self.ctx.yahoo_symbols[self.symbol] = ys
         if ys:
             try:
-                tech = compute_technicals(self.ctx.yahoo.history(ys, "2y"), self.ctx.benchmark)
+                tech = compute_technicals(self.ctx.yahoo.history(ys, self.ctx.settings.price_history), self.ctx.benchmark)
             except Exception as e:
                 self.finding.errors.append(f"prices: {e}")
         v = compute_valuation(d.profile.top_ratios, m, tech, self.ctx.settings.cost_of_equity,

@@ -27,7 +27,7 @@ def test_app_runs_offline_analysis(tmp_path, monkeypatch):
     assert not at.exception, at.exception
     assert not at.error, [e.value for e in at.error]
     assert any("TCS" in m.value for m in at.markdown)
-    assert len(at.tabs) == 8
+    assert len(at.tabs) == 9
     assert {m.label for m in at.metric} >= {"P/E", "ROE", "1Y return"}
 
 

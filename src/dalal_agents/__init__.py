@@ -1,4 +1,4 @@
-"""Dalal Agents — open-source multi-agent equity research for Indian stocks."""
+"""Dalal Agents — an open-source finance research agent for Indian stocks."""
 from __future__ import annotations
 
 __version__ = "0.1.0"
@@ -15,4 +15,10 @@ def analyze(company: str, **settings):
     return _run(company, s)
 
 
-__all__ = ["analyze", "__version__"]
+def outlook(symbol: str, exchange: str | None = None, **kwargs):
+    """Return a typed multi-horizon outlook. See outlook.service.analyze_outlook."""
+    from .outlook.service import analyze_outlook
+    return analyze_outlook(symbol, exchange, **kwargs)
+
+
+__all__ = ["analyze", "outlook", "__version__"]

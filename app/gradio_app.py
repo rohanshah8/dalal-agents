@@ -21,10 +21,12 @@ import core  # noqa: E402
 
 from dalal_agents import __version__  # noqa: E402
 from dalal_agents.models import Report  # noqa: E402
+from dalal_agents.outlook.render import loading_html  # noqa: E402
+from dalal_agents.outlook.render import render_html as render_outlook
 from dalal_agents.report import DISCLAIMER, render_html, render_markdown  # noqa: E402
 
 TAB_NAMES = ["📋 Summary", "🥊 Competitors & edge", "📈 Price & trend", "📊 Financials", "👥 Ownership",
-             "🎙️ Management & plans", "📰 News", "📄 Full report & sources"]
+             "🎙️ Management & plans", "📰 News", "📄 Full report & sources", "🔭 Outlook & alternatives"]
 
 LANDING = f"""
 ### 🐂 {core.TAGLINE}
@@ -93,16 +95,17 @@ def render(r: dict, secret: str | None = None) -> dict:
         "annual": charts.annual_financials(r), "quarterly": charts.quarterly_results(r), "fin_text": fin,
         "ownership_chart": charts.shareholding(r), "ownership_text": c(sec.get("Ownership")),
         "management": mgmt, "news": news, "full": c(md),
+        "outlook": render_outlook(r.get("outlook")),
         "dl_md": f_md, "dl_html": f_html, "dl_json": f_json,
     }
 
 
 def build() -> gr.Blocks:
-    with gr.Blocks(title="Dalal Agents · AI equity research for Indian stocks") as demo:
+    with gr.Blocks(title="Dalal Agents · Open-source finance research") as demo:
         out: dict[str, gr.components.Component] = {}
         with gr.Row(equal_height=False):
             with gr.Column(scale=1, min_width=280):
-                gr.Markdown(f"# 🐂 Dalal Agents\nAI research analysts for Indian stocks · open source · v{__version__}")
+                gr.Markdown(f"# 🐂 Dalal Agents\nOpen-source finance research for Indian stocks · v{__version__}")
                 query = gr.Textbox(label="Company", placeholder="TCS, 500325, or 'hdfc bank'",
                                    info="NSE symbol, BSE code or company name")
                 gr.Examples(core.EXAMPLES, inputs=query, label="Examples")
@@ -158,6 +161,8 @@ def build() -> gr.Blocks:
                         out["news"] = gr.Markdown()
                     with gr.Tab(TAB_NAMES[7]):
                         out["full"] = gr.Markdown()
+                    with gr.Tab(TAB_NAMES[8]):
+                        out["outlook"] = gr.HTML()
 
         names = list(out)
         outputs = [progress, tabs] + [out[n] for n in names]
@@ -173,6 +178,8 @@ def build() -> gr.Blocks:
                    "base_url": (url or "").strip()} if api_key else None
             lines: list[str] = []
             skip = [gr.skip()] * len(names)
+            initial = [gr.update(visible=False) if n.startswith("dl_") else loading_html() if n == "outlook" else "" if isinstance(out[n], (gr.Markdown, gr.HTML)) else None for n in names]
+            yield ["### ⏳ Analysing…", gr.update(visible=True)] + initial
             try:
                 for kind, payload in core.analyze_stream(q, n_peers, n_concalls, llm):
                     if kind == "done":
@@ -186,9 +193,13 @@ def build() -> gr.Blocks:
                     lines.append(core.fmt_progress(payload))
                     yield ["### ⏳ Analysing…\n\n" + "\n".join(f"- {x}" for x in lines[-14:]), gr.skip()] + skip
             except (LookupError, ValueError) as e:
-                yield [f"### ❌ {core.redact(e, api_key)}", gr.skip()] + skip
+                from dalal_agents.outlook.render import error_html
+                failure = [error_html() if n == "outlook" else gr.skip() for n in names]
+                yield [f"### ❌ {core.redact(e, api_key)}", gr.skip()] + failure
             except Exception as e:
-                yield [f"### ❌ Analysis failed\n\n`{core.redact(e, api_key)}`", gr.skip()] + skip
+                from dalal_agents.outlook.render import error_html
+                failure = [error_html() if n == "outlook" else gr.skip() for n in names]
+                yield [f"### ❌ Analysis failed\n\n`{core.redact(e, api_key)}`", gr.skip()] + failure
 
         inputs = [query, peers, concalls, provider, key, model, base_url]
         go.click(analyse, inputs, outputs, api_visibility="private", concurrency_limit=core.MAX_CONCURRENT, concurrency_id="analyse",
@@ -201,6 +212,18 @@ def build() -> gr.Blocks:
 
 demo = build()
 
+
+def create_app():
+    from dalal_agents.outlook.api import create_app as api_app
+    return gr.mount_gradio_app(api_app(), demo, path="/", theme=gr.themes.Soft(primary_hue="blue"),
+                               css=CSS, footer_links=[])
+
+
+def launch():
+    import uvicorn
+    uvicorn.run(create_app(), host=os.environ.get("GRADIO_SERVER_NAME", "0.0.0.0"),
+                port=int(os.environ.get("GRADIO_SERVER_PORT", "7860")))
+
+
 if __name__ == "__main__":
-    demo.launch(theme=gr.themes.Soft(primary_hue="blue"), css=CSS, footer_links=[],
-                server_name=os.environ.get("GRADIO_SERVER_NAME", "0.0.0.0"))
+    launch()

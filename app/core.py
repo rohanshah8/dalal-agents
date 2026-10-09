@@ -2,7 +2,7 @@
 
 * `analyze_stream()` is the single entry point: it yields ("progress", line) events and finally
   ("done", report_dict). It enforces the global concurrency cap and the caching / key policy:
-  - no key  → quantitative pipeline, cached for everyone for 6 h (keyed by query, peers, concalls);
+  - no key  → quantitative pipeline, shared cache; outlooks add a versioned 15-minute refresh key;
   - key     → full pipeline with the visitor's LLM, never cached; the key is redacted from all output.
 * Markdown builders turn a report dict into tab content, so both UIs render identical text.
 """
@@ -24,8 +24,8 @@ MAX_CONCURRENT = int(os.environ.get("DALAL_MAX_CONCURRENT", "2"))
 EXAMPLES = ["TCS", "HDFCBANK", "ASIANPAINT", "RELIANCE", "TITAN", "SUNPHARMA"]
 DEFAULT_MODELS = {"Anthropic (Claude)": "claude-opus-5-5", "OpenAI-compatible": "gpt-4.1-mini"}
 REPO = "https://github.com/rohanshah8/dalal-agents"
-TAGLINE = ("AI research analysts for Indian stocks — fundamentals, trends, concalls, news and how a company "
-           "stacks up against its competitors, with every number cited.")
+TAGLINE = ("An open-source finance research agent for Indian stocks — financials, price trends, "
+           "earnings calls, news, and competitor comparisons with source facts and citations.")
 
 _SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT)
 
@@ -141,10 +141,13 @@ def analyze_stream(query: str, n_peers: int = 4, n_concalls: int = 2, llm: dict 
             base = base.model_dump(mode="json")
         else:
             settings = base_settings(n_peers, n_concalls)
-            ck = (normalize_query(query), int(n_peers), int(n_concalls))
+            from dalal_agents.outlook.config import ForecastConfig
+            outlook_config = ForecastConfig.load(settings.outlook_config_file)
+            outlook_key = (int(time.time() // outlook_config.cache_seconds), outlook_config.version) if settings.outlook_enabled else None
+            ck = (normalize_query(query), int(n_peers), int(n_concalls), outlook_key)
             base = cache.get(ck)
             if base is not None:
-                yield "progress", "⚡ Research served from cache (refreshed every 6 h)."
+                yield "progress", "⚡ Research served from cache (outlooks refreshed within 15 minutes by default)."
             else:
                 r = yield from run_in_thread(research, query, settings)
                 base = r.model_dump(mode="json")
